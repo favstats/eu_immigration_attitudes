@@ -1,0 +1,110 @@
+---
+title: "World Value Survey + European Value Survey"
+author: "Fabio Votta"
+date: "25 7 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = F, message = F, comment = F)
+
+pacman::p_load(tidyverse, sjPlot, sjmisc, sjstats, magrittr, haven)
+load("data/euvs.Rdata")
+
+wvs_eu <- read_sav("data/wvs_eu.sav")
+evs_eu <- read_sav("data/evs_eu.sav")
+```
+
+
+## Overview
+
+### World Value Survey
+
+```{r echo=FALSE}
+wvs_eu %<>% select(A124_06,
+C002,	
+E143,	
+E145,	
+E161,	
+E166,	
+E173,	
+E174,	
+E177,	
+E209,	
+#G007_29,
+G038,
+G039,
+G040,
+G041,
+G042,
+G043,
+G044,
+G045)
+
+view_df(wvs_eu)
+
+
+```
+
+### European Value Survey
+
+```{r, echo=F}
+evs_eu %<>% 
+  select(A124_06,
+C002,	
+E143,	
+E145,	
+E161,	
+E166,	
+E173,	
+E174,	
+E177,	
+E209,	
+#G007_29,
+G038,
+G039,
+G040,
+G041,
+G042,
+G043,
+G044,
+G045)
+
+view_df(evs_eu)
+```
+
+## Missing Values
+
+```{r cars, results='asis', echo=F}
+euvs %<>% 
+  select(wave,
+A124_06,
+C002,	
+E143,	
+E145,	
+E161,	
+E166,	
+E173,	
+E174,	
+E177,	
+E209,	
+G007_29,
+G038,
+G039,
+G040,
+G041,
+G042,
+G043,
+G044,
+G045) 
+
+
+euvs %>% 
+  sample_frac(.20) %>% 
+  arrange(wave) %>% 
+  visdat::vis_miss()
+
+
+```
+
+

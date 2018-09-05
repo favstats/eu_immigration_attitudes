@@ -1,0 +1,409 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+|￣￣￣￣￣￣￣￣￣￣￣￣|
+|   Check out how many   |
+|   countries were asked |
+|   each round!          |
+|＿＿＿＿＿＿＿＿＿＿＿＿| 
+         (\__/)  ||
+         (•ㅅ•)  ||
+         /  　  づ
+         
+Question: Report only a few countries or all of them together? Does that make sense?
+         
+## packages
+
+```{r}
+pacman::p_load(tidyverse, essurvey, magrittr, binoculaR, skimr, SDMTools, Hmisc, haven, grid)
+
+
+```
+
+## data
+
+194	A124_06	Neighbours: Immigrants/foreign workers	194	
+328	C002	Jobs scarce: Employers should give priority to (nation) people than immigrants	328	
+677	E143	Immigrant policy	677	
+679	E145	Immigrants and their customs and traditions	679	
+695	E161	Concerned with immigrants	695	
+701	E166	Prepared to help immigrants	701	
+708	E173	Reason to help: Moral duty to help immigrants	708	
+709	E174	Reason to help: Sympathise with immigrants	709	
+712	E177	Reason to help: Do something in return for immigrants	712	
+746	E209	Would persist to immigrate abroad if R´s economic situation was better	746
+1077	G007_29	Trust: Immigrants	1077	
+1167	G038	Immigrants take away jobs from [nationality]	1167	
+1168	G039	Immigrants undermine countrys cultural life	1168	
+1169	G040	Immigrants increase crime problems	1169	
+1170	G041	Immigrants are a strain on welfare system	1170	
+1171	G042	Immigrants will become a threat to society	1171	
+1172	G043	Immigrants maintain own/take over customs	1172	
+1173	G044	Immigrants living in your country: feels like a stranger	1173	
+1174	G045	Immigrants living in your country: there are too many	1174	
+
+
+```{r}
+wvs_eu <- read_sav("data/wvs_eu.sav")
+evs_eu <- read_sav("data/evs_eu.sav")
+
+# wvs_eu %>% binoculaR()
+# evs_eu %>% binoculaR()
+
+
+wvs_eu %<>% 
+  mutate(cntry = sjmisc::to_label(S003))
+  
+evs_eu %<>% 
+  mutate(cntry = sjmisc::to_label(S003))
+
+
+euvs <- wvs_eu %>% 
+  bind_rows(evs_eu) %>% 
+  mutate(wave = ifelse(is.na(S002EVS), S002, S002EVS)) %>% 
+  mutate(cntry = ifelse(cntry == "Czech Rep.", "Czech Republic", cntry)) %>% 
+  mutate(cntrywave = paste(cntry, wave, sep = "_")) %>% 
+  mutate(imm_neighbour = A124_06) %>% 
+  mutate(imm_jobs = C002)
+
+save(euvs, file = "data/euvs.Rdata")
+```
+
+```{r}
+load("data/euvs.Rdata")
+
+# eu <- c("Austria", "Italy", "Belgium", "Latvia", "Bulgaria", "Lithuania", "Croatia", "Luxembourg", "Cyprus", "Malta", "Czech Republic", "Netherlands", "Denmark", "Poland", "Estonia", "Portugal", "Finland", "Romania", "France", "Slovakia", "Germany", "Slovenia", "Greece", "Spain", "Hungary", "Sweden", "Ireland", "United Kingdom")
+
+
+euvs %>% 
+  select(wave,
+A124_06,
+C002,	
+E143,	
+E145,	
+E161,	
+E166,	
+E173,	
+E174,	
+E177,	
+E209,	
+G007_29,
+G038,
+G039,
+G040,
+G041,
+G042,
+G043,
+G044,
+G045) %>% 
+  sample_frac(.20) %>% 
+  arrange(wave) %>% 
+  visdat::vis_miss()
+
+
+table(wvs_eu$S002)
+
+
+table(euvs$wave, euvs$A124_06)
+
+# table(sjmisc::to_label(wvs_eu$cntry), sjmisc::to_label(wvs_eu$G045)) %>% as.data.frame() %>% filter(Freq != 0)
+# table(sjmisc::to_label(evs_eu$S003), sjmisc::to_label(evs_eu$G043)) %>% as.data.frame() %>% filter(Freq != 0)
+```
+
+## imm_neighbour
+
+```{r}
+load("data/euvs.Rdata")
+
+weight_it <- function(country, filter = T) {
+
+if(filter) {
+country_enquo <- enquo(country)
+  
+filtered <- euvs %>% 
+        filter(cntrywave == !!country_enquo)  
+}  else {
+  filtered <- euvs
+}
+  
+total <- stats::xtabs(filtered$S017 ~ filtered$imm_neighbour) %>% 
+  as_tibble() %>% 
+  mutate(n = round(n)) %>% 
+  rename(imm_neighbour = filtered.imm_neighbour)
+
+df <- stats::xtabs(filtered$S017 ~ filtered$imm_neighbour) %>%
+  prop.table() %>%
+  as_tibble() %>%
+  rename(perc = n)  %>% 
+  rename(imm_neighbour = filtered.imm_neighbour) %>% 
+  left_join(total) %>% 
+  mutate(cntrywave = country)
+
+return(df)
+}
+
+cntrywaves <- unique(euvs$cntrywave) %>% dput()
+
+weight_it("France_1")
+
+weighted_imm_neighbour <- cntrywaves %>% 
+  purrr::map_df(weight_it) 
+
+weighted_imm_neighbour
+
+
+
+colorful <- rev(c('#d7191c','#1a9641'))
+
+weighted_imm_neighbour  %<>%
+  mutate(cntry = str_extract(cntrywave, "[^_]+")) %>% 
+  mutate(wave = str_extract(cntrywave, "(\\d)+") %>% as.numeric) %>% 
+  mutate(imm_neighbour = factor(imm_neighbour, levels = c("0", "1"),
+                           labels = c("Not Mentioned", "Mentioned"))) %>% 
+  # mutate(cname = countrycode::countrycode(cntry, "iso2c", "country.name")) %>% 
+  # mutate(eu = ifelse(cname %in% eu, 1, 0)) %>% 
+  # filter(eu == 1) %>% 
+  # filter(!(cname %in% c("Latvia", "Romania", "Croatia", "Luxembourg"))) %>%
+  mutate(year_label = case_when(
+    wave == 1 ~ "'81-'84",
+    wave == 2 ~ "'89-'93",
+    wave == 3 ~ "'94-'98",
+    wave == 4 ~ "'99-'04",
+    wave == 5 ~ "'05-'09",
+    wave == 6 ~ "'10-'14"
+  )) 
+  
+weighted_imm_neighbour %>% 
+  filter(imm_neighbour == "Mentioned") %>% 
+  ggplot(aes(x = wave, y = perc)) + 
+  geom_line(color = "black", linetype = "dashed") +
+#  geom_hline(yintercept = 0.5, linetype = 3, alpha = 0.9) +
+  geom_point(alpha = 0.85, position = "identity", size = 1.8) +
+  facet_wrap(~cntry, nrow = 4) +
+#  ggthemes::scale_fill_gdocs() +
+  scale_color_manual(values = colorful) +
+  ggthemes::theme_gdocs() +
+  ggtitle("Would not like to have as neighbour: Immigrants/Foreign workers") +
+  ylab("Percent") +
+  xlab("Year") +
+  guides(alpha = F) +
+  theme(axis.text.x = element_text(size = 7.5, face = "italic"),
+        panel.spacing.x = unit(1.4, "lines")) +
+  scale_y_continuous(labels = scales::percent) +
+  scale_x_continuous(labels = unique(weighted_imm_neighbour$year_label), breaks = 1:6) +
+  theme(legend.position = "top", legend.direction = "horizontal", legend.justification = "left") +
+  labs(fill = "", caption = paste0("N = ", "165.312", "; Source: WVS+EVS 1981 - 2014; Weighted by population weight."))
+
+ggsave(filename = "images/imm_neighbour.png", height = 8, width = 16)
+
+
+n_imm_neighbour <- euvs$imm_neighbour %>%
+  na.omit %>% 
+  as.numeric %>% 
+  length
+```
+
+## imm_jobs
+
+```{r}
+table(euvs$imm_jobs)
+
+# table(evs_eu$C002 %>% sjmisc::to_label())
+
+weight_it <- function(country, filter = T) {
+
+if(filter) {
+country_enquo <- enquo(country)
+  
+filtered <- euvs %>% 
+        filter(cntrywave == !!country_enquo)  
+}  else {
+  filtered <- euvs
+}
+  
+total <- stats::xtabs(filtered$S017 ~ filtered$imm_jobs) %>% 
+  as_tibble() %>% 
+  mutate(n = round(n)) %>% 
+  rename(imm_jobs = filtered.imm_jobs)
+
+df <- stats::xtabs(filtered$S017 ~ filtered$imm_jobs) %>%
+  prop.table() %>%
+  as_tibble() %>%
+  rename(perc = n)  %>% 
+  rename(imm_jobs = filtered.imm_jobs) %>% 
+  left_join(total) %>% 
+  mutate(cntrywave = country)
+
+return(df)
+}
+
+cntrywaves <- unique(euvs$cntrywave[euvs$wave != 1]) %>% dput()
+
+# weight_it("France_1")
+
+weighted_imm_jobs <- cntrywaves %>% 
+  purrr::map_df(weight_it) 
+
+weighted_imm_jobs
+
+
+
+colorful <- c('#d7191c','grey', '#1a9641')
+
+weighted_imm_jobs  %<>%
+  mutate(cntry = str_extract(cntrywave, "[^_]+")) %>% 
+  mutate(wave = str_extract(cntrywave, "(\\d)+") %>% as.numeric) %>% 
+  mutate(imm_jobs = factor(imm_jobs, levels = c("1", "3", "2"),
+                           labels = c("Agree", "Neither", "Disagree"))) %>% 
+  # mutate(cname = countrycode::countrycode(cntry, "iso2c", "country.name")) %>% 
+  # mutate(eu = ifelse(cname %in% eu, 1, 0)) %>% 
+  # filter(eu == 1) %>% 
+  # filter(!(cname %in% c("Latvia", "Romania", "Croatia", "Luxembourg"))) %>%
+  mutate(year_label = case_when(
+#    wave == 1 ~ "'81-'84",
+    wave == 2 ~ "'89-'93",
+    wave == 3 ~ "'94-'98",
+    wave == 4 ~ "'99-'04",
+    wave == 5 ~ "'05-'09",
+    wave == 6 ~ "'10-'14"
+  )) 
+  
+weighted_imm_jobs %>% 
+  ggplot(aes(x = wave, y = perc, fill = imm_jobs, alpha = 0.85)) + 
+  geom_area(color = "black") +
+  geom_hline(yintercept = 0.5, linetype = 3, alpha = 0.9) +
+#  geom_point(shape = 6, alpha = 0.85, position = "identity") +
+  facet_wrap(~cntry, nrow = 4) +
+#  ggthemes::scale_fill_gdocs() +
+  # scale_fill_manual(values = colorful) +
+  viridis::scale_fill_viridis(discrete = T, direction = -1) +
+  ggthemes::theme_gdocs() +
+  ggtitle("Jobs scarce: Employers should give priority to [nation] people than immigrants") +
+  ylab("Percent") +
+  xlab("Year") +
+  guides(alpha = F) +
+  theme(axis.text.x = element_text(size = 7.5, face = "italic"),
+        panel.spacing.x = unit(1.4, "lines")) +
+  scale_y_continuous(labels = scales::percent) +
+  scale_x_continuous(labels = unique(weighted_imm_jobs$year_label), breaks = 2:6) +
+  theme(legend.position = "top", legend.direction = "horizontal", legend.justification = "left") +
+  labs(fill = "", caption = paste0("N = ", "149.337", "; Source: WVS+EVS 1981 - 2014; Weighted by population weight."))
+
+ggsave(filename = "images/imm_jobs.png", height = 8, width = 16)
+
+
+n_imm_jobs <- euvs$imm_jobs %>%
+  na.omit %>% 
+  as.numeric %>% 
+  length
+```
+
+## tables
+
+```{r}
+is_zero <- function(x) {
+  ifelse(x == 0, 0, 1)
+}
+```
+
+
+### imm_neighbour
+
+```{r}
+load("data/euvs.Rdata")
+
+imm_neighbour_tab <- euvs %>% 
+  select(cntry, wave, imm_neighbour) %>% 
+  table() %>% 
+  as_tibble() %>% 
+  group_by(cntry, wave) %>% 
+  summarise(n = sum(n)) %>% 
+  spread("wave", "n") %>% 
+  set_names(c("cntry", 
+            "'81-'84",
+            "'89-'93",
+            "'94-'98",
+            "'99-'04",
+            "'05-'09",
+            "'10-'14")) %>% 
+  mutate_at(vars(2:7), is_zero) %>% 
+  ungroup() %>% 
+  mutate(n_cntryear = .[,2:7] %>%
+  rowSums()) %>% 
+  arrange(desc(n_cntryear)) %>% 
+  mutate(var_codes = "imm_neighbour") %>% 
+  mutate(var_names = "Would not like to have as neighbour: Immigrants/Foreign workers") %>% 
+  select(cntry, var_codes, var_names, everything())
+
+
+
+```
+
+### imm_jobs
+
+```{r}
+imm_jobs_tab <- euvs %>% 
+  select(cntry, wave, imm_jobs) %>% 
+  table() %>% 
+  as_tibble() %>% 
+  group_by(cntry, wave) %>% 
+  summarise(n = sum(n)) %>% 
+  spread("wave", "n") %>% 
+  set_names(c("cntry", 
+            "'81-'84",
+            "'89-'93",
+            "'94-'98",
+            "'99-'04",
+            "'05-'09",
+            "'10-'14")) %>% 
+  mutate_at(vars(2:7), is_zero) %>% 
+  ungroup() %>% 
+  mutate(n_cntryear = .[,2:7] %>%
+  rowSums()) %>% 
+  arrange(desc(n_cntryear)) %>% 
+  mutate(var_codes = "imm_jobs") %>% 
+  mutate(var_names = "Jobs scarce: Employers should give priority to [nation] people than immigrants") %>% 
+  select(cntry, var_codes, var_names, everything())
+```
+
+### imm_policy
+
+```{r}
+imm_policy_tab <- euvs %>% 
+  select(cntry, wave, E143) %>% 
+  table() %>% 
+  as_tibble() %>% 
+  group_by(cntry, wave) %>% 
+  summarise(n = sum(n)) %>% 
+  spread("wave", "n") %>% 
+  set_names(c("cntry", 
+            "'81-'84",
+            "'89-'93",
+            "'94-'98",
+            "'99-'04",
+            "'05-'09",
+            "'10-'14")) %>% 
+  mutate_at(vars(2:7), is_zero) %>% 
+  ungroup() %>% 
+  mutate(n_cntryear = .[,2:7] %>%
+  rowSums()) %>% 
+  arrange(desc(n_cntryear)) %>% 
+  mutate(var_codes = "imm_policy") %>% 
+  mutate(var_names = "Immigrant policy") %>% 
+  select(cntry, var_codes, var_names, everything())
+
+
+```
+
+### bind it
+
+```{r}
+wvs_table <- bind_rows(imm_neighbour_tab, imm_jobs_tab, imm_policy_tab)
+
+xlsx::write.xlsx(wvs_table, file = "data/wvs_table.xlsx")
+
+wvs_table
+```
+

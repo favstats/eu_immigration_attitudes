@@ -1,0 +1,60 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+98	imsmetn	Allow many/few immigrants of same race/ethnic group as majority	98 ESS
+99	imdfetn	Allow many/few immigrants of different race/ethnic group from majority 99 ESS
+100	impcntr	Allow many/few immigrants from poorer countries outside Europe	100 ESS
+101	imbgeco	Immigration bad or good for country's economy	101 ESS
+102	imueclt	Country's cultural life undermined or enriched by immigrants	102 ESS
+103	imwbcnt	Immigrants make country worse or better place to live	103 ESS
+
+
+194	A124_06	Neighbours: Immigrants/foreign workers	194	WVS
+328	C002	Jobs scarce: Employers should give priority to (nation) people than immigrants	328 WVS
+677	E143	Immigrant policy	677	WVS
+679	E145	Immigrants and their customs and traditions	679	WVS
+695	E161	Concerned with immigrants	695	WVS
+701	E166	Prepared to help immigrants	701	WVS
+708	E173	Reason to help: Moral duty to help immigrants	708	WVS
+709	E174	Reason to help: Sympathise with immigrants	709	WVS
+712	E177	Reason to help: Do something in return for immigrants	712	WVS
+746	E209	Would persist to immigrate abroad if R´s economic situation was better	746 WVS
+1077	G007_29	Trust: Immigrants	1077	WVS
+1167	G038	Immigrants take away jobs from [nationality]	1167	WVS
+1168	G039	Immigrants undermine countrys cultural life	1168	WVS
+1169	G040	Immigrants increase crime problems	1169	WVS
+1170	G041	Immigrants are a strain on welfare system	1170	WVS
+1171	G042	Immigrants will become a threat to society	1171	WVS
+1172	G043	Immigrants maintain own/take over customs	1172	WVS
+1173	G044	Immigrants living in your country: feels like a stranger	1173	WVS
+1174	G045	Immigrants living in your country: there are too many	1174	WVS
+
+
+```{r}
+
+```
+
+## Policy
+
+The European Union should have a common asylum policy towards asylum seekers
+The European Union should have a common immigration policy towards people from outside the European Union
+A common European policy on migration
+Accepting refugees
+Immigration policy
+Rules for political asylum
+
+
+## Attitudes towards Immigration per se
+
+Immigration of people from outside the EU
+Immigration of people from other EU Member States
+What do you think are the two most important issues facing (OUR COUNTRY) at the moment?
+What do you think are the two most important issues facing the EU at the moment? 
+And personally, what are the two most important issues you are facing at the moment?
+
+## Attitudes towards Immigrants
+
+Attitudes towards Immigrants
+

@@ -1,0 +1,137 @@
+---
+title: "Migration Codebook"
+author: "Fabio Votta"
+date: "31 7 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+pacman::p_load(tidyverse, sjPLot, sjmisc)
+
+knitr::opts_chunk$set(echo = TRUE, warning = F)
+```
+
+## Codebook
+
+
+```{r cars, results='asis'}
+load("data/migration_dat.Rdata")
+
+this <- migration_dat %>% 
+   purrr::map(~{
+     sjPlot::view_df(.x, hide.progress = T, use.viewer = F, no.output = T, show.labels = T, show.frq = T, show.prc = T)
+     })
+
+
+this[[1]]
+this[[2]]
+this[[3]]
+this[[4]]
+this[[5]]
+this[[6]]
+this[[7]]
+this[[8]]
+this[[9]]
+this[[10]]
+this[[11]]
+this[[12]]
+this[[13]]
+this[[14]]
+this[[15]]
+this[[16]]
+this[[17]]
+this[[18]]
+this[[19]]
+this[[20]]
+this[[21]]
+this[[22]]
+this[[23]]
+this[[24]]
+this[[25]]
+this[[26]]
+this[[27]]
+this[[28]]
+this[[29]]
+this[[30]]
+this[[31]]
+this[[32]]
+this[[33]]
+this[[34]]
+this[[35]]
+this[[36]]
+this[[37]]
+this[[38]]
+this[[39]]
+this[[40]]
+this[[41]]
+this[[42]]
+this[[43]]
+this[[44]]
+this[[45]]
+this[[46]]
+this[[47]]
+this[[48]]
+this[[49]]
+this[[50]]
+this[[51]]
+this[[52]]
+this[[53]]
+this[[54]]
+this[[55]]
+this[[56]]
+this[[57]]
+this[[58]]
+this[[59]]
+this[[60]]
+this[[61]]
+this[[62]]
+this[[63]]
+this[[64]]
+this[[65]]
+this[[66]]
+this[[67]]
+this[[68]]
+this[[69]]
+this[[70]]
+this[[71]]
+this[[72]]
+this[[73]]
+this[[74]]
+this[[75]]
+this[[76]]
+this[[77]]
+this[[78]]
+this[[79]]
+this[[80]]
+this[[81]]
+this[[82]]
+this[[83]]
+this[[84]]
+this[[85]]
+this[[86]]
+this[[87]]
+this[[88]]
+this[[89]]
+this[[90]]
+this[[91]]
+this[[92]]
+this[[93]]
+this[[94]]
+this[[95]]
+this[[96]]
+this[[97]]
+this[[98]]
+this[[99]]
+this[[100]]
+this[[101]]
+this[[102]]
+this[[103]]
+this[[104]]
+this[[105]]
+this[[106]]
+this[[107]]
+# this[[108]]
+# this[[109]]
+
+```
+

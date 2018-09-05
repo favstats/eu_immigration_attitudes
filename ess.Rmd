@@ -1,0 +1,1501 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+|￣￣￣￣￣￣￣￣￣￣￣￣￣|
+| Qualitative analysis IS  |
+| empirical analysis.      |
+|＿＿＿＿＿＿＿＿＿＿＿＿＿| 
+             (\__/)  ||
+             (•ㅅ•)  ||
+            /  　  づ
+
+## packages
+
+```{r}
+
+#devtools::install_github("ropensci/essurvey")
+#devtools::install_github("systats/binoculaR")
+pacman::p_load(tidyverse, essurvey, magrittr, binoculaR, skimr, SDMTools, Hmisc, sjmisc, sjPlot, labelled, questionr, weights)
+
+
+```
+
+## functions
+
+```{r}
+
+
+  library(shiny)
+  library(miniUI)
+  library(labelled)
+  library(magrittr)
+  library(dplyr)
+  library(DT)
+  library(sjPlot)
+  
+remove_nulls <- function(list) {
+    list[unlist(lapply(list, length) != 0)]
+  }
+  
+  var_names <- function(data, keyword = "") {
+    keyword <- ifelse(keyword %in% "all", "", keyword)
+    lablist <- data %>% var_label() %>% remove_nulls() %>% 
+      dplyr::bind_rows() %>% t()
+    name_pos <- stringr::str_detect(tolower(lablist[, 1]), 
+      tolower(keyword))
+    if (any(name_pos)) {
+      dat <- data.frame(var_codes = names(lablist[name_pos, 
+        ]), var_names = lablist[name_pos, ], row.names = NULL, 
+        stringsAsFactors = F)
+      cat(paste0("####---- Nice! You found ", nrow(dat), 
+        " variables! ----#### \n \n "))
+      return(dat)
+    }
+    else {
+      cat("Variable Name not found. Try again with a different name.")
+    }
+  }
+
+```
+
+
+
+## ess api
+
+```{r}
+show_rounds()
+
+set_email("fabio.votta@gmail.com")
+
+ess1_8_list <- import_rounds(1:8)
+
+save(ess1_8_list, file = "data/ess1_8_list.Rdata")
+
+ess1_8_list %>% 
+  purrr::map(~{
+    .x %>% 
+      filter(cntry == "AT") %>% select(essround) %>% table()
+  })
+```
+
+
+## data
+
+```{r}
+
+load("data/ess1_8_list.Rdata")
+
+# ess1_8_list[[8]] %>% binoculaR()
+
+
+var_names(ess1_8_list[[1]], "migr")
+
+ess1_8 <- ess1_8_list %>% 
+  purrr::map(~{
+    .x %>% 
+      dplyr::select(name, essround, edition, proddate, cntry, idno,
+                     imsmetn, imdfetn, impcntr, imbgeco, imueclt, imwbcnt,
+                    dweight, pspwght, pweight) %>%
+      recode_missings()
+    }
+  ) %>%
+  bind_rows() 
+
+# ess1_8[[8]]
+
+eu <- c("Austria", "Italy", "Belgium", "Latvia", "Bulgaria", "Lithuania", "Croatia", "Luxembourg", "Cyprus", "Malta", "Czechia", "Netherlands", "Denmark", "Poland", "Estonia", "Portugal", "Finland", "Romania", "France", "Slovakia", "Germany", "Slovenia", "Greece", "Spain", "Hungary", "Sweden", "Ireland", "United Kingdom")
+
+
+ess1_8 %<>%
+  mutate(dp_weight = pweight * dweight) %>% 
+  mutate(cntryround = paste(cntry, essround, sep = "_")) %>% 
+  mutate(cname = countrycode::countrycode(cntry, "iso2c", "country.name")) %>% 
+  mutate(eu = ifelse(cname %in% eu, 1, 0))
+
+
+
+table(ess1_8$cname, ess1_8$eu)
+
+save(ess1_8, file = "data/ess1_8.Rdata")
+```
+
+## immigration coding
+
+98	imsmetn	Allow many/few immigrants of same race/ethnic group as majority	98
+99	imdfetn	Allow many/few immigrants of different race/ethnic group from majority	99
+100	impcntr	Allow many/few immigrants from poorer countries outside Europe	100
+101	imbgeco	Immigration bad or good for country's economy	101
+102	imueclt	Country's cultural life undermined or enriched by immigrants	102
+103	imwbcnt	Immigrants make country worse or better place to live	103
+
+### imm_race
+
+```{r}
+skim(ess1_8)
+
+load("data/ess1_8.Rdata")
+```
+
+
+```{r}
+
+table(ess1_8$imsmetn) 
+table(ess1_8$imdfetn) 
+table(ess1_8$impcntr)
+
+table(ess1_8$imbgeco)
+table(ess1_8$imueclt)
+table(ess1_8$imwbcnt)
+
+weight_it <- function(country, filter = T) {
+
+if(filter) {
+country_enquo <- enquo(country)
+  
+filtered <- ess1_8 %>% 
+        filter(cntryround == !!country_enquo)  
+}  else {
+  filtered <- ess1_8
+}
+  
+total <- stats::xtabs(filtered$dp_weight ~ filtered$imsmetn) %>% 
+  as_tibble() %>% 
+  mutate(n = round(n)) %>% 
+  rename(imm_race = filtered.imsmetn)
+
+df <- stats::xtabs(filtered$dp_weight ~ filtered$imsmetn) %>%
+  prop.table() %>%
+  as_tibble() %>%
+  rename(perc = n)  %>% 
+  rename(imm_race = filtered.imsmetn) %>% 
+  left_join(total) %>% 
+  mutate(cntryround = country)
+
+return(df)
+}
+
+cntryrounds <- unique(ess1_8$cntryround) %>% dput()
+
+weight_it("AT_1")
+
+weighted_imm_race <- cntryrounds %>% 
+  purrr::map_df(weight_it) # %>% 
+#  bind_rows(weight_it("All Countries", filter = F))
+
+# 1 Allow many to come and live here
+# 2 Allow some
+# 3 Allow a few
+# 4 Allow none
+
+
+colorful <- rev(c('#d7191c','#fdae61','#a6d96a','#1a9641'))
+
+# scico::scico_palette_show()
+# disco::disco_palette_show()
+
+weighted_imm_race  %<>% 
+  mutate(cntry = str_extract(cntryround, "^.{2}")) %>% 
+  mutate(round = str_extract(cntryround, "(\\d)+") %>% as.numeric) %>% 
+  mutate(imm_race = factor(imm_race, levels = c("1", "2", "3", "4"),
+                           labels = c("...many", "...some", "...few", "...none"))) %>% 
+  mutate(cname = countrycode::countrycode(cntry, "iso2c", "country.name")) %>% 
+  mutate(eu = ifelse(cname %in% eu, 1, 0)) %>% 
+  filter(eu == 1) %>% 
+  filter(!(cname %in% c("Latvia", "Romania", "Croatia", "Luxembourg"))) %>%
+  mutate(year = case_when(
+    round == 1 ~ 2002,
+    round == 2 ~ 2004,
+    round == 3 ~ 2006,
+    round == 4 ~ 2008,
+    round == 5 ~ 2010,
+    round == 6 ~ 2012,
+    round == 7 ~ 2014,
+    round == 8 ~ 2016,
+  )) 
+
+weighted_imm_race %>% 
+  ggplot(aes(x = year, y = perc, fill = imm_race, alpha = 0.85)) + 
+  geom_area(color = "black") +
+  geom_hline(yintercept = 0.5, linetype = 3, alpha = 0.9) +
+#  geom_point(shape = 6, alpha = 0.85, position = "identity") +
+  facet_wrap(~cname, nrow = 5) +
+#  ggthemes::scale_fill_gdocs() +
+  scale_fill_manual(values = colorful) +
+  ggthemes::theme_gdocs() +
+  ggtitle("Allow many/few immigrants of same race/ethnic group as majority") +
+  ylab("Percent") +
+  xlab("Year") +
+  guides(alpha = F) +
+  scale_y_continuous(labels = scales::percent) +
+  theme(legend.position = "top", legend.direction = "horizontal", legend.justification = "left") +
+  labs(fill = "Allow", caption = paste0("N = ", "367.527", 
+                                        "; Source: European Social Survey Round 1 - 8; Weighted by population and design weight."))
+
+ggsave(filename = "images/imm_race.png", height = 8, width = 15)
+
+
+n_imsmetn <- ess1_8$imsmetn %>%
+  na.omit %>% 
+  as.numeric %>% 
+  length
+
+weighted_imm_race %>% 
+#  filter(!(cname %in% not_wants)) %>% 
+#  na.omit() %>% 
+#  group_by(cntry, year, imm_race) %>%
+#  summarise(perc = mean(perc)) %>%  
+  ggplot(aes(x = year, y = perc, fill = imm_race, alpha = 0.98)) + 
+  geom_area(color = "black") +
+  geom_hline(yintercept = 0.5, linetype = 3, alpha = 0.9) +
+#  geom_point(shape = 6, alpha = 0.85, position = "identity") +
+  facet_wrap(~cname, nrow = 4) +
+  viridis::scale_fill_viridis(discrete = T, direction = -1) +
+#  ggthemes::scale_fill_gdocs() +
+#  disco::scale_fill_disco(palette = "eclipse") +
+   scale_fill_manual(values = colorful) +
+  ggthemes::theme_gdocs() +
+  ggtitle("Allow many/few immigrants of same race/ethnic group as majority") +
+  ylab("Percent") +
+  xlab("Year") +
+  guides(alpha = F) +
+  scale_y_continuous(labels = scales::percent) +
+  theme(legend.position = "top", legend.direction = "horizontal", legend.justification = "left") +
+  labs(fill = "Allow", caption = paste0("N = ", "367.527", 
+                                        "; Source: European Social Survey Round 1 - 8; Weighted by population and design weight.")) -> gg_imm_race
+
+ggsave(gg_imm_race, filename = "images/imm_race.png", height = 8, width = 15)
+  
+
+gg_imm_race %>% 
+  colorblindr::cvd_grid()
+
+
+ggsave(filename = "images/imm_race_cb2.png", height = 14, width = 22)
+  
+```
+
+### imm_race_diff
+
+```{r}
+weight_it <- function(country, filter = T) {
+
+if(filter) {
+country_enquo <- enquo(country)
+  
+filtered <- ess1_8 %>% 
+        filter(cntryround == !!country_enquo)  
+}  else {
+  filtered <- ess1_8
+}
+  
+total <- stats::xtabs(filtered$dp_weight ~ filtered$imdfetn) %>% 
+  as_tibble() %>% 
+  mutate(n = round(n)) %>% 
+  rename(imm_race_diff = filtered.imdfetn)
+
+df <- stats::xtabs(filtered$dp_weight ~ filtered$imdfetn) %>%
+  prop.table() %>%
+  as_tibble() %>%
+  rename(perc = n)  %>% 
+  rename(imm_race_diff = filtered.imdfetn) %>% 
+  left_join(total) %>% 
+  mutate(cntryround = country)
+
+return(df)
+}
+
+cntryrounds <- unique(ess1_8$cntryround) %>% dput()
+
+# weight_it("AT_1")
+
+weighted_imm_race_diff <- cntryrounds %>% 
+  purrr::map_df(weight_it) # %>% 
+#  bind_rows(weight_it("All Countries", filter = F))
+
+# 1 Allow many to come and live here
+# 2 Allow some
+# 3 Allow a few
+# 4 Allow none
+
+colorful <- rev(c('#d7191c','#fdae61','#a6d96a','#1a9641'))
+
+weighted_imm_race_diff  %<>% 
+  mutate(cntry = str_extract(cntryround, "^.{2}")) %>% 
+  mutate(round = str_extract(cntryround, "(\\d)+") %>% as.numeric) %>% 
+  mutate(imm_race_diff = factor(imm_race_diff, levels = c("1", "2", "3", "4"),
+                           labels = c("...many", "...some", "...few", "...none"))) %>% 
+  mutate(cname = countrycode::countrycode(cntry, "iso2c", "country.name")) %>% 
+  mutate(eu = ifelse(cname %in% eu, 1, 0)) %>% 
+  filter(eu == 1) %>% 
+  filter(!(cname %in% c("Latvia", "Romania", "Croatia", "Luxembourg"))) %>%
+  mutate(year = case_when(
+    round == 1 ~ 2002,
+    round == 2 ~ 2004,
+    round == 3 ~ 2006,
+    round == 4 ~ 2008,
+    round == 5 ~ 2010,
+    round == 6 ~ 2012,
+    round == 7 ~ 2014,
+    round == 8 ~ 2016,
+  )) 
+
+weighted_imm_race_diff %>% 
+  ggplot(aes(x = year, y = perc, fill = imm_race_diff, alpha = 0.85)) + 
+  geom_area(color = "black") +
+  geom_hline(yintercept = 0.5, linetype = 3, alpha = 0.9) +
+ # geom_line() +
+  facet_wrap(~cname, nrow = 5) +
+  # disco::scale_fill_disco(palette = "sunset") +
+  viridis::scale_fill_viridis(discrete = T, direction = -1) +
+#  scale_fill_manual(values = colorful) +
+  ggthemes::theme_gdocs() +
+  ggtitle("Allow many/few immigrants of different race/ethnic group as majority") +
+  ylab("Percent") +
+  xlab("Year") +
+  guides(alpha = F) +
+  scale_y_continuous(labels = scales::percent) +
+  theme(legend.position = "top", legend.direction = "horizontal", legend.justification = "left") +
+  labs(fill = "Allow", caption = paste0("N = ", "366.535", 
+                                        "; Source: European Social Survey Round 1 - 8; Weighted by population and design weight."))
+
+ggsave(filename = "images/imm_race_diff.png", height = 8, width = 15)
+
+
+n_imdfetn <- ess1_8$imdfetn %>%
+  na.omit %>% 
+  as.numeric %>% 
+  length
+
+
+full_join(cntry_dat, weighted_imm_race_diff, by = "cname") %>% 
+  filter(!(cname %in% not_wants)) %>% 
+  na.omit() %>% 
+  group_by(regional, year, imm_race_diff) %>% 
+  summarise(perc = mean(perc)) %>% 
+  ggplot(aes(x = year, y = perc, fill = imm_race_diff, alpha = 0.85)) + 
+  geom_area(color = "black") +
+  geom_hline(yintercept = 0.5, linetype = 3, alpha = 0.9) +
+ # geom_line() +
+  facet_wrap(~regional, nrow = 2) +
+#  ggthemes::scale_fill_gdocs() +
+  # disco::scale_fill_disco(palette = "sunset") +
+  viridis::scale_fill_viridis(discrete = T, direction = -1) +
+  ggthemes::theme_gdocs() +
+  ggtitle("Allow many/few immigrants of different race/ethnic group as majority") +
+  ylab("Percent") +
+  xlab("Year") +
+  guides(alpha = F) +
+  scale_y_continuous(labels = scales::percent) +
+  theme(legend.position = "top", legend.direction = "horizontal", legend.justification = "left") +
+  labs(fill = "Allow", caption = paste0("N = ", "366.535", 
+                                        "; Source: European Social Survey Round 1 - 8; Weighted by population and design weight."))
+
+ggsave(filename = "images/imm_race_diff_regions.png", height = 8, width = 15)
+```
+
+
+
+
+### imm_poor
+
+```{r}
+weight_it <- function(country, filter = T) {
+
+if(filter) {
+country_enquo <- enquo(country)
+  
+filtered <- ess1_8 %>% 
+        filter(cntryround == !!country_enquo)  
+}  else {
+  filtered <- ess1_8
+}
+  
+total <- stats::xtabs(filtered$dp_weight ~ filtered$impcntr) %>% 
+  as_tibble() %>% 
+  mutate(n = round(n)) %>% 
+  rename(imm_poor = filtered.impcntr)
+
+df <- stats::xtabs(filtered$dp_weight ~ filtered$impcntr) %>%
+  prop.table() %>%
+  as_tibble() %>%
+  rename(perc = n)  %>% 
+  rename(imm_poor = filtered.impcntr) %>% 
+  left_join(total) %>% 
+  mutate(cntryround = country)
+
+return(df)
+}
+
+cntryrounds <- unique(ess1_8$cntryround) %>% dput()
+
+# weight_it("AT_1")
+
+weighted_imm_poor <- cntryrounds %>% 
+  purrr::map_df(weight_it) # %>% 
+#  bind_rows(weight_it("All Countries", filter = F))
+
+# 1 Allow many to come and live here
+# 2 Allow some
+# 3 Allow a few
+# 4 Allow none
+
+colorful <- rev(c('#d7191c','#fdae61','#a6d96a','#1a9641'))
+
+weighted_imm_poor  %<>% 
+  mutate(cntry = str_extract(cntryround, "^.{2}")) %>% 
+  mutate(round = str_extract(cntryround, "(\\d)+") %>% as.numeric) %>% 
+  mutate(imm_poor = factor(imm_poor, levels = c("1", "2", "3", "4"),
+                           labels = c("...many", "...some", "...few", "...none"))) %>% 
+  mutate(cname = countrycode::countrycode(cntry, "iso2c", "country.name")) %>% 
+  mutate(eu = ifelse(cname %in% eu, 1, 0)) %>% 
+  filter(eu == 1) %>% 
+  filter(!(cname %in% c("Latvia", "Romania", "Croatia", "Luxembourg"))) %>%
+  mutate(year = case_when(
+    round == 1 ~ 2002,
+    round == 2 ~ 2004,
+    round == 3 ~ 2006,
+    round == 4 ~ 2008,
+    round == 5 ~ 2010,
+    round == 6 ~ 2012,
+    round == 7 ~ 2014,
+    round == 8 ~ 2016,
+  )) 
+
+weighted_imm_poor %>% 
+  ggplot(aes(x = year, y = perc, fill = imm_poor, alpha = 0.85)) + 
+  geom_area(color = "black") +
+  geom_hline(yintercept = 0.5, linetype = 3, alpha = 0.9) +
+ # geom_line() +
+  facet_wrap(~cname, nrow = 5) +
+#  ggthemes::scale_fill_gdocs() +
+  # scale_fill_manual(values = colorful) +
+  viridis::scale_fill_viridis(discrete = T, direction = -1) +
+  ggthemes::theme_gdocs() +
+  ggtitle("Allow many/few immigrants from poorer countries outside Europe") +
+  ylab("Percent") +
+  xlab("Year") +
+  guides(alpha = F) +
+  scale_y_continuous(labels = scales::percent) +
+  theme(legend.position = "top", legend.direction = "horizontal", legend.justification = "left") +
+  labs(fill = "Allow", caption = paste0("N = ", "364.733", 
+                                        "; Source: European Social Survey Round 1 - 8; Weighted by population and design weight."))
+
+ggsave(filename = "images/imm_poor.png", height = 8, width = 15)
+
+
+n_impcntr <- ess1_8$impcntr %>%
+  na.omit %>% 
+  as.numeric %>% 
+  length
+
+
+
+full_join(cntry_dat, weighted_imm_poor, by = "cname") %>% 
+  filter(!(cname %in% not_wants)) %>% 
+  na.omit() %>% 
+  group_by(regional, year, imm_poor) %>% 
+  summarise(perc = mean(perc)) %>% 
+  ggplot(aes(x = year, y = perc, fill = imm_poor, alpha = 0.85)) + 
+  geom_area(color = "black") +
+  geom_hline(yintercept = 0.5, linetype = 3, alpha = 0.9) +
+ # geom_line() +
+  facet_wrap(~regional, nrow = 2) +
+#  ggthemes::scale_fill_gdocs() +
+  # scale_fill_manual(values = colorful) +
+  viridis::scale_fill_viridis(discrete = T, direction = -1) +
+  ggthemes::theme_gdocs() +
+  ggtitle("Allow many/few immigrants from poorer countries outside Europe") +
+  ylab("Percent") +
+  xlab("Year") +
+  guides(alpha = F) +
+  scale_y_continuous(labels = scales::percent) +
+  theme(legend.position = "top", legend.direction = "horizontal", legend.justification = "left") +
+  labs(fill = "Allow", caption = paste0("N = ", "364.733", 
+                                        "; Source: European Social Survey Round 1 - 8; Weighted by population and design weight."))
+
+
+ggsave(filename = "images/imm_poor_regions.png", height = 8, width = 15)
+```
+
+
+## 10 scales
+
+### imm_econ
+
+```{r}
+imm_econ_plot <- ess1_8 %>% #filter(cntry == "AT") %>% select(essround) %>% table()
+  filter(eu == 1) %>% 
+  filter(!(cname %in% c("Latvia", "Romania", "Croatia", "Luxembourg"))) %>%
+  rename(imm_econ = imbgeco)  %>%
+  mutate(year = case_when(
+    essround == 1 ~ 2002,
+    essround == 2 ~ 2004,
+    essround == 3 ~ 2006,
+    essround == 4 ~ 2008,
+    essround == 5 ~ 2010,
+    essround == 6 ~ 2012,
+    essround == 7 ~ 2014,
+    essround == 8 ~ 2016,
+  )) %>%
+  # mutate(year = factor(year)) %>%
+  group_by(cname, year) %>% 
+  summarise(imm_econ_wtd = wt.mean(imm_econ, dp_weight),
+            imm_econ_sd = wtd.var(imm_econ, dp_weight, na.rm = T) %>% sqrt)
+
+imm_econ_means <- ess1_8 %>% #filter(cntry == "AT") %>% select(essround) %>% table()
+  filter(eu == 1) %>% 
+  filter(!(cname %in% c("Latvia", "Romania", "Croatia", "Luxembourg"))) %>%
+  rename(imm_econ = imbgeco)  %>%
+  mutate(year = case_when(
+    essround == 1 ~ 2002,
+    essround == 2 ~ 2004,
+    essround == 3 ~ 2006,
+    essround == 4 ~ 2008,
+    essround == 5 ~ 2010,
+    essround == 6 ~ 2012,
+    essround == 7 ~ 2014,
+    essround == 8 ~ 2016,
+  ))  %>% 
+  group_by(cname) %>% 
+  summarise(imm_econ_mean = wt.mean(imm_econ, dp_weight))
+
+imm_econ_plot %>% 
+  ggplot(aes(year, imm_econ_wtd)) +
+  geom_point() +
+#  geom_hline(data = imm_econ_means, aes(yintercept = mean(imm_econ_mean, na.rm = T), group = cname), linetype = 2) +
+ # geom_line() +
+  facet_wrap(~cname, nrow = 5) +
+#  ggthemes::scale_fill_gdocs() +
+  scale_fill_manual(values = colorful) +
+  ggthemes::theme_gdocs() +
+  ggtitle("Immigration bad or good for country's economy") +
+  ylab("0 = Bad for the economy - 10 = Good for the economy") +
+  xlab("Year") +
+  guides(alpha = F) +
+  theme(legend.position = "top", legend.direction = "horizontal", legend.justification = "left") +
+  labs(fill = "Allow", caption = paste0("N = ", "361.656", 
+                                        "; Source: European Social Survey Round 1 - 8; Weighted by population and design weight.")) +
+  ylim(0, 10) +
+  geom_line() + 
+  geom_errorbar(aes(ymin = imm_econ_wtd - (imm_econ_sd), 
+                    ymax = imm_econ_wtd + (imm_econ_sd)), 
+                colour = "black", width = .1)
+
+ggsave(filename = "images/imm_econ.png", height = 8, width = 15)
+
+n_imbgeco <- ess1_8$imbgeco %>%
+  na.omit %>% 
+  as.numeric %>% 
+  length
+
+
+
+full_join(cntry_dat, imm_econ_plot, by = "cname") %>% 
+  filter(!(cname %in% not_wants)) %>% 
+  na.omit() %>% 
+  group_by(regional, year) %>% 
+  summarise(imm_econ_wtd = mean(imm_econ_wtd),
+            imm_econ_sd = mean(imm_econ_sd))  %>% 
+  ggplot(aes(year, imm_econ_wtd)) +
+  geom_point() +
+#  geom_hline(data = imm_econ_means, aes(yintercept = mean(imm_econ_mean, na.rm = T), group = cname), linetype = 2) +
+ # geom_line() +
+  facet_wrap(~regional, nrow = 2) +
+#  ggthemes::scale_fill_gdocs() +
+  scale_fill_manual(values = colorful) +
+  ggthemes::theme_gdocs() +
+  ggtitle("Immigration bad or good for country's economy") +
+  ylab("0 = Bad for the economy - 10 = Good for the economy") +
+  xlab("Year") +
+  guides(alpha = F) +
+  theme(legend.position = "top", legend.direction = "horizontal", legend.justification = "left") +
+  labs(fill = "Allow", caption = paste0("N = ", "361.656", 
+                                        "; Source: European Social Survey Round 1 - 8; Weighted by population and design weight.")) +
+  ylim(0, 10) +
+  geom_line() + 
+  geom_errorbar(aes(ymin = imm_econ_wtd - (imm_econ_sd), 
+                    ymax = imm_econ_wtd + (imm_econ_sd)), 
+                colour = "black", width = .1)
+
+ggsave(filename = "images/imm_econ_regions.png", height = 8, width = 15)
+  
+```
+
+
+
+### imm_culture
+
+```{r}
+imm_culture_plot <- ess1_8 %>% #filter(cntry == "AT") %>% select(essround) %>% table()
+  filter(eu == 1) %>% 
+  filter(!(cname %in% c("Latvia", "Romania", "Croatia", "Luxembourg"))) %>%
+  rename(imm_culture = imueclt)  %>%
+  mutate(year = case_when(
+    essround == 1 ~ 2002,
+    essround == 2 ~ 2004,
+    essround == 3 ~ 2006,
+    essround == 4 ~ 2008,
+    essround == 5 ~ 2010,
+    essround == 6 ~ 2012,
+    essround == 7 ~ 2014,
+    essround == 8 ~ 2016,
+  )) %>%
+  # mutate(year = factor(year)) %>%
+  group_by(cname, year) %>% 
+  summarise(imm_culture_wtd = wt.mean(imm_culture, dp_weight),
+            imm_culture_sd = wtd.var(imm_culture, dp_weight, na.rm = T) %>% sqrt)
+
+imm_culture_means <- ess1_8 %>% #filter(cntry == "AT") %>% select(essround) %>% table()
+  filter(eu == 1) %>% 
+  filter(!(cname %in% c("Latvia", "Romania", "Croatia", "Luxembourg"))) %>%
+  rename(imm_culture = imueclt)  %>%
+  mutate(year = case_when(
+    essround == 1 ~ 2002,
+    essround == 2 ~ 2004,
+    essround == 3 ~ 2006,
+    essround == 4 ~ 2008,
+    essround == 5 ~ 2010,
+    essround == 6 ~ 2012,
+    essround == 7 ~ 2014,
+    essround == 8 ~ 2016,
+  ))  %>% 
+  group_by(cname) %>% 
+  summarise(imm_culture_mean = wt.mean(imm_culture, dp_weight))
+
+imm_culture_plot %>% 
+  ggplot(aes(year, imm_culture_wtd)) +
+  geom_point() +
+#  geom_hline(data = imm_culture_means, aes(yintercept = mean(imm_culture_mean, na.rm = T), group = cname), linetype = 2) +
+ # geom_line() +
+  facet_wrap(~cname, nrow = 5) +
+#  ggthemes::scale_fill_gdocs() +
+  scale_fill_manual(values = colorful) +
+  ggthemes::theme_gdocs() +
+  ggtitle("Country's cultural life undermined or enriched by immigrants") +
+  ylab("0 = Cultural life undermined - 10 = Cultural life enriched") +
+  xlab("Year") +
+  guides(alpha = F) +
+  theme(legend.position = "top", legend.direction = "horizontal", legend.justification = "left") +
+  labs(fill = "Allow", caption = paste0("N = ", "362.497", 
+                                        "; Source: European Social Survey Round 1 - 8; Weighted by population and design weight.")) +
+  ylim(0, 10) +
+  geom_line() + 
+  geom_errorbar(aes(ymin = imm_culture_wtd - (imm_culture_sd), 
+                    ymax = imm_culture_wtd + (imm_culture_sd)), 
+                colour = "black", width = .1)
+
+ggsave(filename = "images/imm_culture.png", height = 8, width = 15)
+
+n_imueclt <- ess1_8$imueclt %>%
+  na.omit %>% 
+  as.numeric %>% 
+  length
+
+full_join(cntry_dat, imm_culture_plot, by = "cname") %>% 
+  filter(!(cname %in% not_wants)) %>% 
+  na.omit() %>% 
+  group_by(regional, year) %>% 
+  summarise(imm_culture_wtd = mean(imm_culture_wtd),
+            imm_culture_sd = mean(imm_culture_sd))  %>% 
+  ggplot(aes(year, imm_culture_wtd)) +
+  geom_point() +
+#  geom_hline(data = imm_culture_means, aes(yintercept = mean(imm_culture_mean, na.rm = T), group = cname), linetype = 2) +
+ # geom_line() +
+  facet_wrap(~regional, nrow = 2) +
+#  ggthemes::scale_fill_gdocs() +
+  scale_fill_manual(values = colorful) +
+  ggthemes::theme_gdocs() +
+  ggtitle("Country's cultural life undermined or enriched by immigrants") +
+  ylab("0 = Cultural life undermined - 10 = Cultural life enriched") +
+  xlab("Year") +
+  guides(alpha = F) +
+  theme(legend.position = "top", legend.direction = "horizontal", legend.justification = "left") +
+  labs(fill = "Allow", caption = paste0("N = ", "362.497", 
+                                        "; Source: European Social Survey Round 1 - 8; Weighted by population and design weight.")) +
+  ylim(0, 10) +
+  geom_line() + 
+  geom_errorbar(aes(ymin = imm_culture_wtd - (imm_culture_sd), 
+                    ymax = imm_culture_wtd + (imm_culture_sd)), 
+                colour = "black", width = .1)
+
+ggsave(filename = "images/imm_culture_regions.png", height = 8, width = 15)
+```
+
+
+
+
+### imm_worse
+
+```{r}
+imm_worse_plot <- ess1_8 %>% #filter(cntry == "AT") %>% select(essround) %>% table()
+  filter(eu == 1) %>% 
+  filter(!(cname %in% c("Latvia", "Romania", "Croatia", "Luxembourg"))) %>%
+  rename(imm_worse = imwbcnt)  %>%
+  mutate(year = case_when(
+    essround == 1 ~ 2002,
+    essround == 2 ~ 2004,
+    essround == 3 ~ 2006,
+    essround == 4 ~ 2008,
+    essround == 5 ~ 2010,
+    essround == 6 ~ 2012,
+    essround == 7 ~ 2014,
+    essround == 8 ~ 2016,
+  )) %>%
+  # mutate(year = factor(year)) %>%
+  group_by(cname, year) %>% 
+  summarise(imm_worse_wtd = wt.mean(imm_worse, dp_weight),
+            imm_worse_sd = wtd.var(imm_worse, dp_weight, na.rm = T) %>% sqrt) %>% 
+  ungroup %>% 
+  group_by(cname) %>% 
+  mutate(imm_worse_mean = mean(imm_worse_wtd))
+
+imm_worse_means <- ess1_8 %>% #filter(cntry == "AT") %>% select(essround) %>% table()
+  filter(eu == 1) %>% 
+  filter(!(cname %in% c("Latvia", "Romania", "Croatia", "Luxembourg"))) %>%
+  rename(imm_worse = imwbcnt)  %>%
+  mutate(year = case_when(
+    essround == 1 ~ 2002,
+    essround == 2 ~ 2004,
+    essround == 3 ~ 2006,
+    essround == 4 ~ 2008,
+    essround == 5 ~ 2010,
+    essround == 6 ~ 2012,
+    essround == 7 ~ 2014,
+    essround == 8 ~ 2016,
+  ))  %>% 
+  group_by(cname) %>% 
+  summarise(imm_worse_mean = wt.mean(imm_worse, dp_weight))
+
+imm_worse_plot %>% 
+  ggplot(aes(year, imm_worse_wtd)) +
+  geom_point() +
+ # geom_hline(aes(yintercept = mean(imm_worse_mean, na.rm = T), group = cname), linetype = 2) +
+ # geom_line() +
+  facet_wrap(~cname, nrow = 5) +
+#  ggthemes::scale_fill_gdocs() +
+  scale_fill_manual(values = colorful) +
+  ggthemes::theme_gdocs() +
+  ggtitle("Immigrants make country worse or better place to live") +
+  ylab("0 = Worse place to liver - 10 = Better place to live") +
+  xlab("Year") +
+  guides(alpha = F) +
+  theme(legend.position = "top", legend.direction = "horizontal", legend.justification = "left") +
+  labs(fill = "Allow", caption = paste0("N = ", "361.001", 
+                                        "; Source: European Social Survey Round 1 - 8; Weighted by population and design weight.")) +
+  ylim(0, 10) +
+  geom_line(size = 0.6) + 
+  geom_errorbar(aes(ymin = imm_worse_wtd - (imm_worse_sd), 
+                    ymax = imm_worse_wtd + (imm_worse_sd)), 
+                colour = "black", width = .1)
+
+ggsave(filename = "images/imm_worse.png", height = 8, width = 15)
+
+n_imwbcnt <- ess1_8$imwbcnt %>%
+  na.omit %>% 
+  as.numeric %>% 
+  length
+
+
+full_join(cntry_dat, imm_worse_plot, by = "cname") %>% 
+  filter(!(cname %in% not_wants)) %>% 
+  na.omit() %>% 
+  group_by(regional, year) %>% 
+  summarise(imm_worse_wtd = mean(imm_worse_wtd),
+            imm_worse_sd = mean(imm_worse_sd))  %>% 
+  ggplot(aes(year, imm_worse_wtd)) +
+  geom_point() +
+#  geom_hline(data = imm_worse_means, aes(yintercept = mean(imm_worse_mean, na.rm = T), group = cname), linetype = 2) +
+ # geom_line() +
+  facet_wrap(~regional, nrow = 2) +
+#  ggthemes::scale_fill_gdocs() +
+  scale_fill_manual(values = colorful) +
+  ggthemes::theme_gdocs() +
+  ggtitle("Immigrants make country worse or better place to live") +
+  ylab("0 = Worse place to liver - 10 = Better place to live") +
+  xlab("Year") +
+  guides(alpha = F) +
+  theme(legend.position = "top", legend.direction = "horizontal", legend.justification = "left") +
+  labs(fill = "Allow", caption = paste0("N = ", "361.001", 
+                                        "; Source: European Social Survey Round 1 - 8; Weighted by population and design weight.")) +
+  ylim(0, 10) +
+  geom_line() + 
+  geom_errorbar(aes(ymin = imm_worse_wtd - (imm_worse_sd), 
+                    ymax = imm_worse_wtd + (imm_worse_sd)), 
+                colour = "black", width = .1)
+
+ggsave(filename = "images/imm_worse_regions.png", height = 8, width = 15)
+```
+
+
+
+## regions
+
+```{r}
+cntry_dat <- bind_rows(
+data.frame(stringsAsFactors=FALSE,
+          cname = c("Denmark", "Estonia", "Faroe Islands", "Finland", "Iceland",
+                 "Ireland", "Isle of Man", "Latvia", "Lithuania", "Norway",
+                 "Svalbard and Jan Mayen Islands", "Sweden",
+                 "United Kingdom"),
+          regional = "Northern Europe"),
+data.frame(stringsAsFactors=FALSE,
+          cname = c("Albania", "Andorra", "Bosnia and Herzegovina",
+                   "Croatia", "Gibraltar", "Greece", "Holy See", "Italy",
+                   "Malta", "Montenegro", "Portugal", "San Marino", "Serbia",
+                   "Slovenia", "Spain", "Cyprus",
+                   "The former Yugoslav Republic of Macedonia"),
+          regional = "Southern Europe"),
+data.frame(stringsAsFactors=FALSE,
+          cname = c("Austria", "Belgium", "France", "Germany",
+                    "Liechtenstein", "Luxembourg", "Monaco", "Netherlands",
+                    "Switzerland"),
+          regional = "Western Europe"),
+data.frame(stringsAsFactors=FALSE,
+           cname = c("Belarus", "Bulgaria", "Czechia", "Hungary", "Poland", 
+                     "Republic of Moldova", "Romania", "Russian Federation", "Slovakia",
+                     "Ukraine"), 
+           regional = "Eastern Europe")
+)
+
+not_wants <- c("Andorra", "Belarus", "Bosnia and Herzegovina", "Faroe Islands", "Gibraltar", "Holy See", "Isle of Man", "Liechtenstein", "Malta", "Monaco", "Montenegro", "Republic of Moldova", "Russian Federation", "San Marino", "Serbia", "Svalbard and Jan Mayen Islands", "The former Yugoslav Republic of Macedonia")
+
+
+# https://unstats.un.org/unsd/methodology/m49/
+
+# cntry_dat %<>% 
+  # mutate(cntry = countrycode::countrycode(cntry, "country.name", "country.name")) 
+
+# uk <- mlogit_ess %>%
+#   filter(cntry == "United Kingdom") %>%
+#   mutate(regional = "north")
+
+
+ess1_8 <- full_join(cntry_dat, ess1_8, by = "cname") 
+
+ess1_8 %<>% 
+  filter(!(cname %in% not_wants))
+
+# mlogit_ess <- rbind(mlogit_ess, uk)
+
+ess1_8 %<>% 
+  mutate(north = ifelse(regional == "north", 1, 0)) %>% 
+  mutate(south = ifelse(regional == "south", 1, 0)) %>% 
+  mutate(east = ifelse(regional == "east", 1, 0)) %>% 
+  mutate(west = ifelse(regional == "west", 1, 0)) 
+```
+
+### imm_race
+
+```{r}
+weight_it <- function(country, filter = T) {
+
+if(filter) {
+country_enquo <- enquo(country)
+  
+filtered <- ess1_8 %>% 
+        filter(regionround == !!country_enquo)  
+}  else {
+  filtered <- ess1_8
+}
+  
+total <- stats::xtabs(filtered$dp_weight ~ filtered$imsmetn) %>% 
+  as_tibble() %>% 
+  mutate(n = round(n)) %>% 
+  rename(imm_race = filtered.imsmetn)
+
+df <- stats::xtabs(filtered$dp_weight ~ filtered$imsmetn) %>%
+  prop.table() %>%
+  as_tibble() %>%
+  rename(perc = n)  %>% 
+  rename(imm_race = filtered.imsmetn) %>% 
+  left_join(total) %>% 
+  mutate(cntryround = country)
+
+return(df)
+}
+
+
+ess1_8 %<>% 
+  mutate(regionround = paste(regional, essround, sep = "_"))
+
+ess1_8 %>% 
+  select(regional, cname) %>% table()
+
+ess1_8 %>% 
+  group_by(cname) %>% 
+  count() %>% arrange(n)
+
+regionrounds <- unique(ess1_8$regionround) %>% dput()
+
+regionrounds %<>% str_remove_all(pattern = "NA_*.") %>% .[1:32]
+
+region_imm_race <- regionrounds %>% 
+  purrr::map_df(weight_it) # %>% 
+#  bind_rows(weight_it("All Countries", filter = F))
+
+# 1 Allow many to come and live here
+# 2 Allow some
+# 3 Allow a few
+# 4 Allow none
+
+colorful <- rev(c('#d7191c','#fdae61','#a6d96a','#1a9641'))
+
+weighted_imm_race  %<>% 
+  mutate(cntry = str_extract(cntryround, "^.{2}")) %>% 
+  mutate(round = str_extract(cntryround, "(\\d)+") %>% as.numeric) %>% 
+  mutate(imm_race = factor(imm_race, levels = c("1", "2", "3", "4"),
+                           labels = c("...many", "...some", "...few", "...none"))) %>% 
+  mutate(cname = countrycode::countrycode(cntry, "iso2c", "country.name")) %>% 
+  mutate(eu = ifelse(cname %in% eu, 1, 0)) %>% 
+  filter(eu == 1) %>% 
+  filter(!(cname %in% c("Latvia", "Romania", "Croatia", "Luxembourg"))) %>% 
+  mutate(year = case_when(
+    round == 1 ~ 2002,
+    round == 2 ~ 2004,
+    round == 3 ~ 2006,
+    round == 4 ~ 2008,
+    round == 5 ~ 2010,
+    round == 6 ~ 2012,
+    round == 7 ~ 2014,
+    round == 8 ~ 2016,
+  )) 
+
+weighted_imm_race %>% 
+  ggplot(aes(x = year, y = perc, fill = imm_race, alpha = 0.85)) + 
+  geom_area(color = "black") +
+  geom_hline(yintercept = 0.5, linetype = 3, alpha = 0.9) +
+#  geom_point(shape = 6, alpha = 0.85, position = "identity") +
+  facet_wrap(~cname, nrow = 5) +
+#  ggthemes::scale_fill_gdocs() +
+  scale_fill_manual(values = colorful) +
+  ggthemes::theme_gdocs() +
+  ggtitle("Allow many/few immigrants of same race/ethnic group as majority") +
+  ylab("Percent") +
+  xlab("Year") +
+  guides(alpha = F) +
+  scale_y_continuous(labels = scales::percent) +
+  theme(legend.position = "top", legend.direction = "horizontal", legend.justification = "left") +
+  labs(fill = "Allow", caption = paste0("N = ", "367.527", 
+                                        "; Source: European Social Survey Round 1 - 8; Weighted by population and design weight."))
+
+ggsave(filename = "images/imm_race.png", height = 8, width = 15)
+
+
+	
+```
+
+
+
+
+## tables
+
+```{r}
+load("data/ess1_8_list.Rdata")
+
+ess1_8_list %>% 
+  purrr::map_df(~{var_names(.x, "migr|fugee|asyl") %>% 
+      mutate(round = .x$essround %>% unique)}) -> mig_dat
+```
+
+
+## selected countries
+
+```{r}
+eu <- c("Austria", "Italy", "Belgium", "Latvia", "Bulgaria", "Lithuania", "Croatia", "Luxembourg", "Cyprus", "Malta", "Czechia", "Netherlands", "Denmark", "Poland", "Estonia", "Portugal", "Finland", "Romania", "France", "Slovakia", "Germany", "Slovenia", "Greece", "Spain", "Hungary", "Sweden", "Ireland", "United Kingdom")
+
+
+yeardat <- mig_dat %>% 
+  spread("round", "var_names") %>% 
+  mutate(na_count = 8 - rowSums(is.na(.))) %>% 
+  arrange(desc(na_count)) %>% 
+#  filter(na_count > 1) %>%   # filtering out the questions that have been asked in only one survey
+  select(var_codes, na_count, everything()) %>% 
+  mutate_at(vars(3:10), function(x){ifelse(is.na(x), 0, 1)}) %>% 
+  left_join(mig_dat %>% select(var_codes, var_names) %>% group_by(var_codes) %>% slice(1)) %>% 
+  select(var_codes, var_names, everything(), n_survey = na_count)
+
+
+get_presencies <- function(x, country) {
+x %>% 
+  filter(cntry == country) %>% 
+  select(matches(yeardat$var_codes %>% paste(., collapse = "|"))) %>% 
+  colSums(is.na(.))  %>% as.list() %>% data.frame() %>% 
+  t() %>% as.data.frame() %>% rownames_to_column("var_codes") %>% 
+  rename(present = V1) %>% 
+  mutate(present = ifelse(is.na(present), 0, 1)) %>% 
+  mutate(cntry = country) %>% 
+  mutate(cname = countrycode::countrycode(cntry, "iso2c", "country.name")) %>% 
+  mutate(eu = ifelse(cname %in% eu, 1, 0)) %>% 
+  filter(eu == 1) %>% 
+  select(-eu)
+}
+
+mig_full <- bind_rows(
+ess1_8_list[[1]]$cntry %>% unique() %>%
+  map_df(~{
+    get_presencies(x = ess1_8_list[[1]], country = .x)
+  }) %>% 
+  mutate(round = 1),
+ess1_8_list[[2]]$cntry %>% unique() %>%
+  map_df(~{
+    get_presencies(x = ess1_8_list[[2]], country = .x)
+  }) %>% 
+  mutate(round = 2),
+ess1_8_list[[3]]$cntry %>% unique() %>%
+  map_df(~{
+    get_presencies(x = ess1_8_list[[3]], country = .x)
+  }) %>% 
+  mutate(round = 3),
+ess1_8_list[[4]]$cntry %>% unique() %>%
+  map_df(~{
+    get_presencies(x = ess1_8_list[[4]], country = .x)
+  }) %>% 
+  mutate(round = 4),
+ess1_8_list[[5]]$cntry %>% unique() %>%
+  map_df(~{
+    get_presencies(x = ess1_8_list[[5]], country = .x)
+  }) %>% 
+  mutate(round = 5),
+ess1_8_list[[6]]$cntry %>% unique() %>%
+  map_df(~{
+    get_presencies(x = ess1_8_list[[6]], country = .x)
+  }) %>% 
+  mutate(round = 6),
+ess1_8_list[[7]]$cntry %>% unique() %>%
+  map_df(~{
+    get_presencies(x = ess1_8_list[[7]], country = .x)
+  }) %>% 
+  mutate(round = 7),
+ess1_8_list[[8]]$cntry %>% unique() %>%
+  map_df(~{
+    get_presencies(x = ess1_8_list[[8]], country = .x)
+  }) %>% 
+  mutate(round = 8)
+)
+
+mig_full %<>% 
+  select(-cntry) %>% 
+  # group_by(var_codes, cntry, round) %>% 
+  # mutate(n = n())
+  spread("round", "present") %>%
+  mutate(n_surveycntry = 8 - rowSums(is.na(.))) %>% 
+  full_join(yeardat %>% select(var_codes, var_names, n_survey)) %>%
+#  group_by(cntry) %>%
+#  mutate(cntry_n = n()) %>%
+  # add_count(var_codes) %>% 
+  # rename(cntry_n = n) %>% 
+  arrange(var_codes, desc(n_survey), cname) %>% 
+  select(cname, var_codes, var_names, 
+         n_survey, n_surveycntry, 
+         everything()) %>% 
+  mutate_at(vars(4:13), function(x){ifelse(is.na(x) | x == 0, 0, 1)}) %>% 
+  rename(`2002` = `1`,
+         `2004` = `2`,
+         `2006` = `3`,
+         `2008` = `4`,
+         `2010` = `5`,
+         `2012` = `6`,
+         `2014` = `7`,
+         `2016` = `8`,
+         ) 
+
+
+ess_migrant <- mig_full %>% 
+  mutate(n_cntryear = mig_full[,6:13] %>%
+  rowSums()) %>% 
+  select(-n_survey, -n_surveycntry) %>% 
+  filter(n_cntryear > 1) %>% 
+  arrange(cname, desc(n_cntryear)) 
+
+xlsx::write.xlsx(ess_migrant, file = "data/ess_migrant.xlsx", sheetName = "Full Data")
+
+ess_migrant_others <- ess_migrant %>% 
+  filter(!(var_codes %in% c("imbgeco", "imdfetn", "impcntr", "imsmetn", "imueclt", "imwbcnt"))) %>% 
+  arrange(cname, desc(n_cntryear)) 
+
+
+xlsx::write.xlsx(ess_migrant_others, file = "data/ess_migrant.xlsx", sheetName = "Others", append = T)
+
+```
+
+## pooled
+
+13 countries have six questions asked accross all survey round
+
+They are:
+
+"Belgium", "Germany", "Spain", "Finland", 
+"France", "United Kingdom", "Hungary", "Ireland", "Netherlands", 
+"Poland", "Portugal", "Sweden", "Slovenia"
+
+```{r}
+ess_migrant <- xlsx::read.xlsx(file = "data/ess_migrant.xlsx",
+                               sheetName = "Full Data")
+
+
+ess_migrant %>% 
+  select(-NA.) %>% 
+#  arrange(var_codes) %>% 
+  mutate(n_cntryear = ess_migrant[,5:12] %>%
+  rowSums()) %>% 
+  arrange(desc(n_cntryear)) %>% 
+  # mutate_at(vars(4:14), function(x){ifelse(is.na(x) | x == 0, 0, 1)}) %>% 
+  filter(n_cntryear == 8) %>% #select(cname) %>% unique %>%  dput
+  group_by(var_codes, var_names) %>% 
+  count() #%>% #select(var_codes) %>% dput()
+
+
+```
+
+
+```{r}
+# ess1_8_list[[8]]$cntry %>% unique() %>% 
+  # map_df(get_presencies)
+```
+
+
+
+## Tables for Pub
+
+1 Allow many to come and live here  
+2 Allow some
+3 Allow a few
+4 Allow none
+7 Refusal
+8 Don't know
+9 No answer		
+
+0 Bad for the economy
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10 Good for the economy
+77 Refusal
+88 Don't know
+99 No answer	
+
+### data
+
+```{r}
+load("data/ess1_8_list.Rdata")
+
+# ess1_8_list[[8]] %>%
+#   dplyr::select(name, essround, edition, proddate, cntry, idno,
+#                      imsmetn, imdfetn, impcntr, imbgeco, imueclt, imwbcnt,
+#                     dweight, pspwght, pweight) %>% 
+#   binoculaR()
+
+ess1_8_table <- ess1_8_list %>% 
+  purrr::map(~{
+    .x %>% 
+      dplyr::select(name, essround, edition, proddate, cntry, idno,
+                     imsmetn, imdfetn, impcntr, imbgeco, imueclt, imwbcnt,
+                    dweight, pspwght, pweight) #%>%
+      # recode_missings()
+    }
+  ) %>%
+  bind_rows() 
+
+eu <- c("Austria", "Italy", "Belgium", "Latvia", "Bulgaria", "Lithuania", "Croatia", "Luxembourg", "Cyprus", "Malta", "Czechia", "Netherlands", "Denmark", "Poland", "Estonia", "Portugal", "Finland", "Romania", "France", "Slovakia", "Germany", "Slovenia", "Greece", "Spain", "Hungary", "Sweden", "Ireland", "United Kingdom")
+
+
+ess1_8_table %<>%
+  mutate(dp_weight = pweight * dweight) %>% 
+  mutate(cntryround = paste(cntry, essround, sep = "_")) %>% 
+  mutate(cname = countrycode::countrycode(cntry, "iso2c", "country.name")) %>% 
+  mutate(eu = ifelse(cname %in% eu, 1, 0))
+
+tidytemplate::save_it(ess1_8_table)
+```
+
+### helpter function
+
+```{r}
+weight_em <- function(x, group, wt) {
+weighted_total <- wtd.table(group, 
+                            weights = wt) %>% as.numeric 
+
+dat <- wtd.table(x, 
+          group,
+          weights = wt) %>% 
+  as_tibble() %>% 
+  rename(imm_race = Var1) %>% 
+  rename(round = Var2) %>% 
+  mutate(perc = case_when(
+    round == 1 ~ n / weighted_total[1],
+    round == 2 ~ n / weighted_total[2],
+    round == 3 ~ n / weighted_total[3],
+    round == 4 ~ n / weighted_total[4],
+    round == 5 ~ n / weighted_total[5],
+    round == 6 ~ n / weighted_total[6],
+    round == 7 ~ n / weighted_total[7],
+    round == 8 ~ n / weighted_total[8]
+  )) %>% 
+  mutate(year = case_when(
+    round == 1 ~ 2002,
+    round == 2 ~ 2004,
+    round == 3 ~ 2006,
+    round == 4 ~ 2008,
+    round == 5 ~ 2010,
+    round == 6 ~ 2012,
+    round == 7 ~ 2014,
+    round == 8 ~ 2016,
+  )) 
+
+return(dat)
+}
+
+# data <- ess1_8_west_table %>% 
+#             select(imsmetn, essround, dp_weight)
+
+get_table <- function(data, levels = NULL, labels = NULL) {
+  
+wt <- weight_em(data[,1][[1]],
+                data[,2][[1]],
+                data[,3][[1]])
+
+n_years <- wt %>% 
+  group_by(year) %>% 
+  summarise(n = sum(n)) %>% t %>% .[2,] %>% round(.) %>% 
+  c("N", .)
+
+
+wt_table <- wt %>% 
+  select(-n, -round) %>% 
+  mutate(perc2 = (perc * 100) %>% 
+                round(.)) %>% 
+  mutate(perc2 = ifelse(perc == 0, "", perc2)) %>% 
+  mutate(perc2 = ifelse(perc < 0.005, "*", perc2)) %>%
+  select(-perc) %>% 
+  rename(perc = perc2) %>% 
+  spread(year, perc) %>% 
+  mutate(imm_race = as.character(imm_race)) %>% 
+  rbind(., n_years) %>% 
+  rbind(c("", rep("%", 8)), .) %>% 
+  mutate(imm_race = factor(imm_race,
+                           levels = levels,
+                           labels = labels)) %>%
+  mutate(imm_race = as.character(imm_race))
+  
+return(wt_table)
+}
+```
+
+### imm_race (imsmetn)
+
+#### pooled
+
+```{r}
+ess1_8_table <- tidytemplate::load_it("data/ess1_8_table.Rdata")
+
+ess_pooled <- c("Belgium", "Germany", "Spain", "Finland", 
+"France", "United Kingdom", "Hungary", "Ireland", "Netherlands", 
+"Poland", "Portugal", "Sweden", "Slovenia")
+
+ess1_8_pooled_table <- ess1_8_table %>% 
+  filter(cname %in% ess_pooled)
+
+levels <- c("1", "2", "3", "4", "7", "8", "9", "", "N")
+
+labels <- c("...many to come and live here",
+           "...some", "...a few", "...none",
+           "Refusal", "Don't Know", "No answer", "", "N")
+
+imm_race_pooled <- get_table(ess1_8_pooled_table %>% 
+                          select(imsmetn, essround, dp_weight),
+                           levels, labels)
+
+stargazer::stargazer(imm_race_pooled, summary = F,
+                     #note you have to specify type
+                     type = "html",
+                     #note that the argument is "out" not "file"
+                     out="tables/singles/imm_race_pooled.doc", rownames = F)
+```
+
+#### western
+
+```{r}
+ess_western <- c("Belgium", "Germany", "Spain", "Finland", 
+                 "France", "United Kingdom", "Ireland", "Netherlands", 
+                 "Portugal", "Sweden")
+
+ess1_8_west_table <- ess1_8_table %>% 
+  filter(cname %in% ess_western)
+
+imm_race_west <- get_table(ess1_8_west_table %>% 
+                             select(imsmetn, essround, dp_weight),
+                           levels, labels)
+
+stargazer::stargazer(imm_race_west, summary = F,
+                     #note you have to specify type
+                     type = "html",
+                     #note that the argument is "out" not "file"
+                     out="tables/singles/imm_race_west.doc", rownames = F)
+```
+
+#### eastern
+
+```{r}
+ess_eastern <- c("Hungary", "Poland", "Slovenia")
+
+ess1_8_east_table <- ess1_8_table %>% 
+  filter(cname %in% ess_eastern)
+
+imm_race_east <- get_table(ess1_8_east_table %>% 
+                             select(imsmetn, essround, dp_weight),
+                           levels, labels)
+
+stargazer::stargazer(imm_race_east, summary = F,
+                     #note you have to specify type
+                     type = "html",
+                     #note that the argument is "out" not "file"
+                     out="tables/singles/imm_race_east.doc", rownames = F)
+```
+
+### imm_race_diff (imdfetn)
+
+#### pooled
+
+```{r}
+ess_pooled <- c("Belgium", "Germany", "Spain", "Finland", 
+"France", "United Kingdom", "Hungary", "Ireland", "Netherlands", 
+"Poland", "Portugal", "Sweden", "Slovenia")
+
+ess1_8_pooled_table <- ess1_8_table %>% 
+  filter(cname %in% ess_pooled)
+
+levels <- c("1", "2", "3", "4", "7", "8", "9", "", "N")
+
+labels <- c("...many to come and live here",
+           "...some", "...a few", "...none",
+           "Refusal", "Don't Know", "No answer", "", "N")
+
+imm_race_diff_pooled <- get_table(ess1_8_pooled_table %>% 
+                          select(imdfetn, essround, dp_weight),
+                           levels, labels)
+
+stargazer::stargazer(imm_race_diff_pooled, summary = F,
+                     #note you have to specify type
+                     type = "html",
+                     #note that the argument is "out" not "file"
+                     out="tables/singles/imm_race_diff_pooled.doc", rownames = F)
+```
+
+#### western
+
+```{r}
+
+ess_western <- c("Belgium", "Germany", "Spain", "Finland", 
+                 "France", "United Kingdom", "Ireland", "Netherlands", 
+                 "Portugal", "Sweden")
+
+ess1_8_west_table <- ess1_8_table %>% 
+  filter(cname %in% ess_western)
+
+imm_race_diff_west <- get_table(ess1_8_west_table %>% 
+                             select(imdfetn, essround, dp_weight),
+                           levels, labels)
+
+stargazer::stargazer(imm_race_diff_west, summary = F,
+                     #note you have to specify type
+                     type = "html",
+                     #note that the argument is "out" not "file"
+                     out="tables/singles/imm_race_diff_west.doc", rownames = F)
+```
+
+#### eastern
+
+```{r}
+ess_eastern <- c("Hungary", "Poland", "Slovenia")
+
+ess1_8_east_table <- ess1_8_table %>% 
+  filter(cname %in% ess_eastern)
+
+imm_race_diff_east <- get_table(ess1_8_east_table %>% 
+                             select(imdfetn, essround, dp_weight),
+                           levels, labels)
+
+stargazer::stargazer(imm_race_diff_east, summary = F,
+                     #note you have to specify type
+                     type = "html",
+                     #note that the argument is "out" not "file"
+                     out="tables/singles/imm_race_diff_east.doc", rownames = F)
+```
+
+### imm_poor (impcntr)
+
+#### pooled
+
+```{r}
+ess_pooled <- c("Belgium", "Germany", "Spain", "Finland", 
+"France", "United Kingdom", "Hungary", "Ireland", "Netherlands", 
+"Poland", "Portugal", "Sweden", "Slovenia")
+
+ess1_8_pooled_table <- ess1_8_table %>% 
+  filter(cname %in% ess_pooled)
+
+levels <- c("1", "2", "3", "4", "7", "8", "9", "", "N")
+
+labels <- c("...many to come and live here",
+           "...some", "...a few", "...none",
+           "Refusal", "Don't Know", "No answer", "", "N")
+
+imm_poor_pooled <- get_table(ess1_8_pooled_table %>% 
+                          select(impcntr, essround, dp_weight),
+                           levels, labels)
+
+stargazer::stargazer(imm_poor_pooled, summary = F,
+                     #note you have to specify type
+                     type = "html",
+                     #note that the argument is "out" not "file"
+                     out="tables/singles/imm_poor_pooled.doc", rownames = F)
+```
+
+#### western
+
+```{r}
+
+ess_western <- c("Belgium", "Germany", "Spain", "Finland", 
+                 "France", "United Kingdom", "Ireland", "Netherlands", 
+                 "Portugal", "Sweden")
+
+ess1_8_west_table <- ess1_8_table %>% 
+  filter(cname %in% ess_western)
+
+imm_poor_west <- get_table(ess1_8_west_table %>% 
+                             select(impcntr, essround, dp_weight),
+                           levels, labels)
+
+stargazer::stargazer(imm_poor_west, summary = F,
+                     #note you have to specify type
+                     type = "html",
+                     #note that the argument is "out" not "file"
+                     out="tables/singles/imm_poor_west.doc", rownames = F)
+```
+
+#### eastern
+
+```{r}
+ess_eastern <- c("Hungary", "Poland", "Slovenia")
+
+ess1_8_east_table <- ess1_8_table %>% 
+  filter(cname %in% ess_eastern)
+
+imm_poor_east <- get_table(ess1_8_east_table %>% 
+                             select(impcntr, essround, dp_weight),
+                           levels, labels)
+
+stargazer::stargazer(imm_poor_east, summary = F,
+                     #note you have to specify type
+                     type = "html",
+                     #note that the argument is "out" not "file"
+                     out="tables/singles/imm_poor_east.doc", rownames = F)
+```

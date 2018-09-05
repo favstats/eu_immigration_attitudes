@@ -1,0 +1,84 @@
+---
+title: "Untitled"
+author: "Fabio Votta"
+date: "21 7 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+pacman::p_load(tidyverse, sjPLot, sjmisc)
+
+knitr::opts_chunk$set(echo = TRUE, warning = F)
+```
+
+## R Markdown
+
+
+```{r cars, results='asis'}
+load("data/common_asylum.Rdata")
+
+this <- common_asylum %>% 
+   purrr::map(~{
+     sjPlot::view_df(.x, hide.progress = T, use.viewer = F, no.output = T, show.labels = T, show.frq = T, show.prc = T)
+     })
+
+
+# this <- list()
+# for (jj in seq_along(common_migration)) {
+#   this[[jj]] <- sjPlot::view_df(common_migration[[jj]], hide.progress = T, use.viewer = F, no.output = T)
+# }
+# 
+# this %>% bind_rows()
+# 
+# common_migration[[1]] %>%
+#   mutate(code = labelled(code, labels = names(code)))
+
+this[[1]]
+this[[2]]
+this[[3]]
+this[[4]]
+this[[5]]
+this[[6]]
+this[[7]]
+this[[8]]
+this[[9]]
+this[[10]]
+this[[11]]
+this[[12]]
+this[[13]]
+this[[14]]
+this[[15]]
+this[[16]]
+this[[17]]
+this[[18]]
+this[[19]]
+this[[20]]
+this[[21]]
+this[[22]]
+this[[23]]
+this[[24]]
+# this[[25]]
+# this[[26]]
+# this[[27]]
+# this[[28]]
+# this[[29]]
+# this[[30]]
+# this[[31]]
+# this[[32]]
+# this[[33]]
+# this[[34]]
+# this[[35]]
+# this[[36]]
+# this[[37]]
+# this[[38]]
+# this[[39]]
+# this[[40]]
+# this[[41]]
+# this[[42]]
+# this[[43]]
+# this[[44]]
+# this[[45]]
+# this[[46]]
+
+```
+

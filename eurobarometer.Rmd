@@ -1,0 +1,1714 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+
+## packages
+
+```{r}
+# devtools::install_github("johndharrison/binman")
+# devtools::install_github("johndharrison/wdman")
+# devtools::install_github("ropensci/RSelenium")
+#devtools::install_github("ropensci/essurvey")
+#devtools::install_github("systats/binoculaR")
+
+pacman::p_load(tidyverse, essurvey, magrittr, binoculaR, skimr, SDMTools, Hmisc, haven, wdman, jsonlite, rvest, xml2, RSelenium, labelled, magrittr, sjPlot)
+
+```
+
+## data
+
+```{r}
+eurobarometers <- tibble::tribble(
+   ~code,                  ~name,
+   "ZA0626",                 "European.Communities.Study.1970",
+  "ZA0627",                 "European Communities Study 1971",
+  "ZA0628",                 "European Communities Study 1973",
+  "ZA0986",                  "Eurobarometer 2 (Oct-Nov 1974)",
+  "ZA0987",                      "Eurobarometer 3 (May 1975)",
+  "ZA0988",                  "Eurobarometer 4 (Oct-Nov 1975)",
+  "ZA0989",                  "Eurobarometer 5 (May-Jun 1976)",
+  "ZA0990",                      "Eurobarometer 6 (Nov 1976)",
+  "ZA0991",                  "Eurobarometer 7 (Apr-May 1977)",
+  "ZA0992",                  "Eurobarometer 8 (Oct-Nov 1977)",
+  "ZA0993",                  "Eurobarometer 9 (May-Jun 1978)",
+  "ZA0994",                 "Eurobarometer 10 (Oct-Nov 1978)",
+  "ZA0995",                "Eurobarometer 10A (Oct-Nov 1978)",
+  "ZA1036",                     "Eurobarometer 11 (Apr 1979)",
+  "ZA1037",                     "Eurobarometer 12 (Oct 1979)",
+  "ZA1038",                     "Eurobarometer 13 (Apr 1980)",
+  "ZA1039",                 "Eurobarometer 14 (Oct-Nov 1980)",
+  "ZA1206",                     "Eurobarometer 15 (Apr 1981)",
+  "ZA1207",                 "Eurobarometer 16 (Oct-Nov 1981)",
+  "ZA1208",                 "Eurobarometer 17 (Mar-Apr 1982)",
+  "ZA1209",                     "Eurobarometer 18 (Oct 1982)",
+  "ZA1318",                 "Eurobarometer 19 (Mar-Apr 1983)",
+  "ZA1319",                     "Eurobarometer 20 (Oct 1983)",
+  "ZA1320",                     "Eurobarometer 21 (Apr 1984)",
+  "ZA1321",                     "Eurobarometer 22 (Oct 1984)",
+  "ZA1541",                     "Eurobarometer 23 (Apr 1985)",
+  "ZA1542",                     "Eurobarometer 24 (Oct 1985)",
+  "ZA1543",                     "Eurobarometer 25 (Apr 1986)",
+  "ZA1544",                     "Eurobarometer 26 (Nov 1986)",
+  "ZA1712",                 "Eurobarometer 27 (Mar-May 1987)",
+  "ZA1713",                     "Eurobarometer 28 (Nov 1987)",
+  "ZA1714",                 "Eurobarometer 29 (Mar-Apr 1988)",
+  "ZA1715",                 "Eurobarometer 30 (Oct-Nov 1988)",
+  "ZA1750",                 "Eurobarometer 31 (Mar-Apr 1989)",
+  "ZA1751",                "Eurobarometer 31A (Jun-Jul 1989)",
+  "ZA1752",                 "Eurobarometer 32 (Oct-Nov 1989)",
+  "ZA1753",                  "Eurobarometer 33 (Spring 1990)",
+  "ZA1960",               "Eurobarometer 34.0 (Oct-Nov 1990)",
+  "ZA1961",                   "Eurobarometer 34.1 (Nov 1990)",
+  "ZA1962",                   "Eurobarometer 34.2 (Dec 1990)",
+  "ZA2031",                   "Eurobarometer 35.0 (Mar 1991)",
+  "ZA2032",                   "Eurobarometer 35.1 (Apr 1991)",
+  "ZA2033",                "Eurobarometer 35A (Mar-Apr 1991)",
+  "ZA2041",               "Eurobarometer 28.1 (Oct-Nov 1987)",
+  "ZA2081",                 "Eurobarometer 36 (Oct-Nov 1991)",
+  "ZA2141",               "Eurobarometer 37.0 (Mar-Apr 1992)",
+  "ZA2241",               "Eurobarometer 37.1 (Apr-May 1992)",
+  "ZA2242",               "Eurobarometer 37.2 (Apr-May 1992)",
+  "ZA2243",          "Eurobarometer 37.0+37.1 (Mar-May 1992)",
+  "ZA2294",               "Eurobarometer 38.0 (Sep-Oct 1992)",
+  "ZA2295",                   "Eurobarometer 38.1 (Nov 1992)",
+  "ZA2346",               "Eurobarometer 39.0 (Mar-Apr 1993)",
+  "ZA2347",               "Eurobarometer 39.1 (May-Jun 1993)",
+  "ZA2348",                "Eurobarometer 39A (Mar-Jun 1993)",
+  "ZA2459",                 "Eurobarometer 40 (Oct-Nov 1993)",
+  "ZA2490",               "Eurobarometer 41.0 (Mar-May 1994)",
+  "ZA2491",               "Eurobarometer 41.1 (Jun-Jul 1994)",
+  "ZA2563",                 "Eurobarometer 42 (Nov-Dec 1994)",
+  "ZA2636",               "Eurobarometer 43.0 (Mar-Apr 1995)",
+  "ZA2637",               "Eurobarometer 43.1 (Apr-May 1995)",
+  "ZA2638",        "Eurobarometer 43.0 + 43.1 (Mar-May 1995)",
+  "ZA2639",            "Eurobarometer 43.1bis (May-Jun 1995)",
+  "ZA2689",               "Eurobarometer 44.0 (Oct-Nov 1995)",
+  "ZA2690",               "Eurobarometer 44.1 (Nov-Dec 1995)",
+  "ZA2789",         "Eurobarometer 44.2 (Nov 1995- Jan 1996)",
+  "ZA2828",            "Eurobarometer 44.2bis (Jan-Mar 1996)",
+  "ZA2829",               "Eurobarometer 44.3 (Feb-Apr 1996)",
+  "ZA2830",            "Eurobarometer 44.3OVR (Feb-Apr 1996)",
+  "ZA2831",               "Eurobarometer 45.1 (Apr-May 1996)",
+  "ZA2898",               "Eurobarometer 46.0 (Oct-Nov 1996)",
+  "ZA2899",               "Eurobarometer 46.1 (Oct-Nov 1996)",
+  "ZA2935",               "Eurobarometer 47.0 (Jan-Feb 1997)",
+  "ZA2936",               "Eurobarometer 47.1 (Mar-Apr 1997)",
+  "ZA2937",               "Eurobarometer 47.2 (Apr-Jun 1997)",
+  "ZA2938",            "Eurobarometer 47.2OVR (Apr-Jun 1997)",
+  "ZA2959",               "Eurobarometer 48.0 (Oct-Nov 1997)",
+  "ZA3052",                 "Eurobarometer 49 (Apr-May 1998)",
+  "ZA3085",               "Eurobarometer 50.0 (Oct-Nov 1998)",
+  "ZA3086",               "Eurobarometer 50.1 (Nov-Dec 1998)",
+  "ZA3171",               "Eurobarometer 51.0 (Mar-May 1999)",
+  "ZA3172",               "Eurobarometer 51.1 (Apr-May 1999)",
+  "ZA3204",               "Eurobarometer 52.0 (Oct-Nov 1999)",
+  "ZA3205",               "Eurobarometer 52.1 (Nov-Dec 1999)",
+  "ZA3296",                "Eurobarometer 53 (Apr- May 2000)",
+  "ZA3386",               "Eurobarometer 54.0 (Oct-Nov 2000)",
+  "ZA3387",               "Eurobarometer 54.1 (Oct-Nov 2000)",
+  "ZA3388",               "Eurobarometer 54.2 (Jan-Feb 2001)",
+  "ZA3389",                  "Eurobarometer 54LAN (Dec 2000)",
+  "ZA3506",               "Eurobarometer 55.0 (Mar-Apr 2001)",
+  "ZA3507",               "Eurobarometer 55.1 (Apr-May 2001)",
+  "ZA3508",            "Eurobarometer 55.1OVR (Apr-May 2001)",
+  "ZA3509",               "Eurobarometer 55.2 (May-Jun 2001)",
+  "ZA3625",              "Eurobarometer 56.0 (Aug-Sept 2001)",
+  "ZA3626",              "Eurobarometer 56.1 (Sept-Oct 2001)",
+  "ZA3627",               "Eurobarometer 56.2 (Oct-Nov 2001)",
+  "ZA3635",               "Eurobarometer 56.3 (Jan-Feb 2002)",
+  "ZA3638",               "Eurobarometer 57.0 (Feb-Apr 2002)",
+  "ZA3639",               "Eurobarometer 57.1 (Mar-May 2002)",
+  "ZA3640",               "Eurobarometer 57.2 (Apr-Jun 2002)",
+  "ZA3641",            "Eurobarometer 57.2OVR (Apr-Jun 2002)",
+  "ZA3651", "European Communities Study 1970 - Great Britain",
+  "ZA3692",               "Eurobarometer 58.0 (Sep-Oct 2002)",
+  "ZA3693",               "Eurobarometer 58.1 (Oct-Nov 2002)",
+  "ZA3886",               "Eurobarometer 58.2 (Oct-Dec 2002)",
+  "ZA3903",               "Eurobarometer 59.0 (Jan-Feb 2003)",
+  "ZA3904",               "Eurobarometer 59.1 (Mar-Apr 2003)",
+  "ZA3905",               "Eurobarometer 59.2 (May-Jun 2003)",
+  "ZA3937",                   "Eurobarometer 60.0 (Sep 2003)",
+  "ZA3938",               "Eurobarometer 60.1 (Oct-Nov 2003)",
+  "ZA3939",               "Eurobarometer 60.2 (Nov-Dec 2003)",
+  "ZA4056",                 "Eurobarometer 61 (Feb-Mar 2004)",
+  "ZA4229",               "Eurobarometer 62.0 (Oct-Nov 2004)",
+  "ZA4230",               "Eurobarometer 62.1 (Oct-Dec 2004)",
+  "ZA4233",               "Eurobarometer 63.1 (Jan-Feb 2005)",
+  "ZA4411",               "Eurobarometer 63.4 (May-Jun 2005)",
+  "ZA4413",               "Eurobarometer 64.1 (Sep-Oct 2005)",
+  "ZA4414",               "Eurobarometer 64.2 (Oct-Nov 2005)",
+  "ZA4415",               "Eurobarometer 64.3 (Nov-Dec 2005)",
+  "ZA4416",         "Eurobarometer 64.4 (Nov 2005- Jan 2006)",
+  "ZA4505",               "Eurobarometer 65.1 (Feb-Mar 2006)",
+  "ZA4506",               "Eurobarometer 65.2 (Mar-May 2006)",
+  "ZA4507",               "Eurobarometer 65.3 (May-Jun 2006)",
+  "ZA4508",               "Eurobarometer 65.4 (Jun-Jul 2006)",
+  "ZA4526",               "Eurobarometer 66.1 (Sep-Oct 2006)",
+  "ZA4527",               "Eurobarometer 66.2 (Oct-Nov 2006)",
+  "ZA4528",               "Eurobarometer 66.3 (Nov-Dec 2006)",
+  "ZA4529",               "Eurobarometer 67.1 (Feb-Mar 2007)",
+  "ZA4530",               "Eurobarometer 67.2 (Apr-May 2007)",
+  "ZA4561",               "Eurobarometer 67.3 (May-Jun 2007)",
+  "ZA4565",               "Eurobarometer 68.1 (Sep-Nov 2007)",
+  "ZA4742",               "Eurobarometer 68.2 (Nov-Dec 2007)",
+  "ZA4743",               "Eurobarometer 69.1 (Feb-Mar 2008)",
+  "ZA4744",               "Eurobarometer 69.2 (Mar-May 2008)",
+  "ZA4819",               "Eurobarometer 70.1 (Oct-Nov 2008)",
+  "ZA4971",               "Eurobarometer 71.1 (Jan-Feb 2009)",
+  "ZA4972",               "Eurobarometer 71.2 (May-Jun 2009)",
+  "ZA4973",               "Eurobarometer 71.3 (Jun-Jul 2009)",
+  "ZA4975",               "Eurobarometer 72.1 (Aug-Sep 2009)",
+  "ZA4976",               "Eurobarometer 72.2 (Sep-Oct 2009)",
+  "ZA4977",                   "Eurobarometer 72.3 (Oct 2009)",
+  "ZA4994",               "Eurobarometer 72.4 (Oct-Nov 2009)",
+  "ZA4999",               "Eurobarometer 72.5 (Nov-Dec 2009)",
+  "ZA5000",               "Eurobarometer 73.1 (Jan-Feb 2010)",
+  "ZA5232",               "Eurobarometer 73.2 (Feb-Mar 2010)",
+  "ZA5233",               "Eurobarometer 73.3 (Mar-Apr 2010)",
+  "ZA5234",                   "Eurobarometer 73.4 (May 2010)",
+  "ZA5235",                   "Eurobarometer 73.5 (Jun 2010)",
+  "ZA5237",                   "Eurobarometer 74.1 (8-9 2010)",
+  "ZA5449",                       "Eurobarometer 74.2 (2010)",
+  "ZA5450",                       "Eurobarometer 74.3 (2010)",
+  "ZA5479",                       "Eurobarometer 75.1 (2011)",
+  "ZA5480",                       "Eurobarometer 75.2 (2011)",
+  "ZA5481",                       "Eurobarometer 75.3 (2011)",
+  "ZA5526",                    "Eurobarometer 75.1 EP (2011)",
+  "ZA5564",                       "Eurobarometer 75.4 (2011)",
+  "ZA5565",                       "Eurobarometer 76.1 (2011)",
+  "ZA5566",                       "Eurobarometer 76.2 (2011)",
+  "ZA5567",                       "Eurobarometer 76.3 (2011)",
+  "ZA5596",                       "Eurobarometer 76.4 (2011)",
+  "ZA5597",                       "Eurobarometer 77.1 (2012)",
+  "ZA5598",                       "Eurobarometer 77.2 (2012)",
+  "ZA5612",                       "Eurobarometer 77.3 (2012)",
+  "ZA5613",                       "Eurobarometer 77.4 (2012)",
+  "ZA5685",                       "Eurobarometer 78.1 (2012)",
+  "ZA5686",                       "Eurobarometer 78.2 (2012)",
+  "ZA5687",                       "Eurobarometer 79.1 (2013)",
+  "ZA5688",                       "Eurobarometer 79.2 (2013)",
+  "ZA5689",                       "Eurobarometer 79.3 (2013)",
+  "ZA5852",                       "Eurobarometer 79.4 (2013)",
+  "ZA5875",                       "Eurobarometer 79.5 (2013)",
+  "ZA5878",                       "Eurobarometer 81.1 (2014)",
+  "ZA5913",                 "Eurobarometer 81.2 (March 2014)",
+  "ZA5914",                       "Eurobarometer 81.3 (2014)",
+  "ZA5928",                       "Eurobarometer 81.4 (2014)",
+  "ZA5964",                       "Eurobarometer 83.1 (2015)",
+  "ZA5965",                       "Eurobarometer 83.2 (2015)",
+  "ZA5998",                       "Eurobarometer 83.3 (2015)",
+  "ZA6595",                       "Eurobarometer 83.4 (2015)",
+  "ZA6642",                       "Eurobarometer 84.2 (2015)",
+  "ZA6643",                       "Eurobarometer 84.3 (2015)",
+  "ZA6644",                       "Eurobarometer 84.4 (2015)",
+  "ZA6693",                       "Eurobarometer 85.1 (2016)",
+  "ZA6694",                       "Eurobarometer 85.2 (2016)",
+  "ZA6695",                       "Eurobarometer 85.3 (2016)",
+  "ZA6696",              "Eurobarometer 85.1OVR (April 2016)",
+  "ZA6697",                       "Eurobarometer 86.1 (2016)",
+  "ZA6788",                       "Eurobarometer 86.2 (2016)",
+  "ZA6791",                       "Eurobarometer 86.3 (2016)",
+  "ZA6861",                       "Eurobarometer 87.1 (2017)",
+  "ZA6863",                       "Eurobarometer 87.3 (2017)",
+  "ZA6925",                       "Eurobarometer 88.1 (2017)",
+  "ZA6927",                       "Eurobarometer 88.2 (2017)",
+  "ZA6928",                       "Eurobarometer 88.3 (2017)"
+  )
+
+eurobarometers
+
+dir("data/eurobarometers") %>% 
+  str_extract(., "[^_]+") %>% 
+  tibble(code = ., have = 1) %>% 
+  full_join(eurobarometers)
+```
+
+## looping
+
+
+### functions
+
+```{r}
+# euro_example <- read_sav(paste0("data/eurobarometers/", dir("data/eurobarometers")[120])) 
+
+
+remove_nulls <- function(list) {
+    list[unlist(lapply(list, length) != 0)]
+  }
+
+var_names <- function(data, keyword = "") {
+    keyword <- ifelse(keyword %in% "all", "", keyword)
+    lablist <- data %>% var_label() %>% remove_nulls() %>% 
+      dplyr::bind_rows() %>% t()
+    name_pos <- stringr::str_detect(tolower(lablist[, 1]), 
+      tolower(keyword))
+    if (any(name_pos)) {
+      dat <- data.frame(var_codes = names(lablist[name_pos, 
+        ]), var_names = lablist[name_pos, ], row.names = NULL, 
+        stringsAsFactors = F)
+      cat(paste0("####---- Nice! You found ", nrow(dat), 
+        " variables! ----#### \n \n "))
+      return(dat)
+    }
+    else {
+      cat("Variable Name not found. Try again with a different name.")
+    }
+}
+
+get_all_migrants <- function(x) {
+
+data <- read_sav(paste0("data/eurobarometers/", x))
+
+migrant_codes <- var_names(data, "migr|fugee|asylum") 
+
+if (!is.null(migrant_codes)) {
+ migrant_codes %<>% 
+  mutate(code = x)
+}
+
+rm(data)
+
+return(migrant_codes)
+
+}
+
+get_all_issues <- function(x) {
+
+data <- read_sav(paste0("data/eurobarometers/", x))
+
+migrant_codes <- var_names(data, "issue") 
+
+if (!is.null(migrant_codes)) {
+ migrant_codes %<>% 
+  mutate(code = x)
+}
+
+rm(data)
+
+return(migrant_codes)
+
+}
+
+
+str_detect("most important issue immigration", "migr & issue")
+
+get_all_topics <- function(x) {
+
+data <- read_sav(paste0("data/eurobarometers/", x))
+
+migrant_codes <- var_names(data, "topic|probl|matter") 
+
+if (!is.null(migrant_codes)) {
+ migrant_codes %<>% 
+  mutate(code = x)
+}
+
+rm(data)
+
+return(migrant_codes)
+
+}
+
+
+
+get_all_presence <- function(x) {
+
+data <- read_sav(paste0("data/eurobarometers/", x))
+
+migrant_codes <- var_names(data, "presence|foreigner") 
+
+if (!is.null(migrant_codes)) {
+ migrant_codes %<>% 
+  mutate(code = x)
+}
+
+rm(data)
+
+return(migrant_codes)
+
+}
+
+get_relevant_migrants <- function(x, variables) {
+  data <- read_sav(paste0("data/eurobarometers/", x)) %>% 
+    select(dplyr::matches(variables))
+  
+  return(data)
+}
+
+get_variables <- function(x, pattern) {
+
+data <- read_sav(paste0("data/eurobarometers/", x))
+
+codes <- var_names(data, pattern) 
+
+if (!is.null(codes)) {
+ codes %<>% 
+  mutate(save = x)
+}
+
+rm(data)
+
+return(codes)
+
+}
+```
+
+
+### all euros
+
+```{r}
+eurocodes_migration <- dir("data/eurobarometers") %>%
+  purrr::map_df(get_all_migrants)
+
+
+save(eurocodes_migration, file = "data/eurocodes_migration.Rdata")
+
+eurocodes_issues <- dir("data/eurobarometers") %>%
+  purrr::map_df(get_all_issues)
+
+save(eurocodes_issues, file = "data/eurocodes_issues.Rdata")
+
+eurocodes_topics <- dir("data/eurobarometers") %>%
+  purrr::map_df(get_all_topics)
+
+save(eurocodes_topics, file = "data/eurocodes_topics.Rdata")
+
+load("data/eurocodes_migration.Rdata")
+load("data/eurocodes_issues.Rdata")
+load("data/eurocodes_topics.Rdata")
+
+
+```
+
+
+```{r}
+eurocodes_presence <- dir("data/eurobarometers") %>%
+  purrr::map_df(get_all_presence)
+
+save(eurocodes_presence, file = "data/eurocodes_presence.Rdata")
+```
+
+
+### com immigration
+
+```{r}
+
+
+common_migration_codes <- eurocodes_migration %>% 
+  filter(str_detect(var_names, "MIGR")) %>% 
+  filter(str_detect(var_names, "COM"))  %>% 
+  filter(str_detect(var_names, "POL")) %>% 
+  filter(str_detect(var_names, "FOR|PROP")) %>% 
+  mutate(save = code)  %>% 
+  mutate(code = str_extract(code, "[^_]+"))  %>% 
+  left_join(eurobarometers) 
+
+common_migration_vars <- common_migration_codes %>% 
+  mutate(var_codes = paste0("\\b", var_codes, "\\b")) %>% 
+  group_by(code) %>% 
+  mutate(var_codes = paste(var_codes, collapse = "|")) %>% 
+  mutate(var_codes = paste0(var_codes, "|isocntry")) %>% 
+  group_by(code) %>% 
+  slice(1)
+
+common_migration_codes %<>% 
+  group_by(code) %>% 
+  slice(1)
+
+common_migration <-  purrr::map2(.x = common_migration_codes$save,
+              .y = common_migration_vars$var_codes,
+              ~{get_relevant_migrants(x = .x ,   variables = .y) %>% 
+                  mutate(code = .x)}
+              )
+
+save(common_migration, file = "data/common_migration.Rdata")
+
+common_migration_plot <- bind_rows(
+  
+common_migration[[1]] <- cbind(common_migration[[1]], 
+      read_sav("data/eurobarometers/ZA3904_v1-0-1.sav") %>% 
+        select(isocntry = v7)) %>% 
+  rename(common_imm = v221),
+
+common_migration[[2]] %<>% 
+  rename(common_imm = v261),
+
+common_migration[[3]] %<>% 
+  rename(common_imm = v211),
+
+common_migration[[4]] <- cbind(common_migration[[4]], 
+      read_sav("data/eurobarometers/ZA4229_v1-1-0.sav") %>% 
+        select(isocntry = v7)) %>% 
+  rename(common_imm = v339),
+
+common_migration[[5]] %<>% 
+  rename(common_imm = v244),
+
+common_migration[[6]] <- cbind(common_migration[[6]], 
+      read_sav("data/eurobarometers/ZA4506_v1-0-1.sav") %>% 
+        select(isocntry = v7)) %>% 
+  rename(common_imm = v3102),
+
+common_migration[[7]] <- cbind(common_migration[[7]], 
+      read_sav("data/eurobarometers/ZA4530_v2-1-0.sav") %>% 
+        select(isocntry = v7)) %>% 
+  rename(common_imm = v375),
+
+common_migration[[8]] <- cbind(common_migration[[8]], 
+      read_sav("data/eurobarometers/ZA4565_v4-0-1.sav") %>% 
+        select(isocntry = v7)) %>% 
+  rename(common_imm = v397) %>% 
+  select(isocntry, code, common_imm),
+
+common_migration[[9]] %<>% 
+  rename(common_imm = qa8_4),
+
+common_migration[[10]] %<>% 
+  rename(common_imm = qa18_6),
+
+common_migration[[11]] %<>% 
+  rename(common_imm = qa15_6),
+
+common_migration[[12]] %<>% 
+  rename(common_imm = qa17_6),
+
+common_migration[[13]] %<>% 
+  rename(common_imm = qa17_6),
+
+common_migration[[14]] %<>% 
+  rename(common_imm = qa16_6),
+
+common_migration[[15]] %<>% 
+  rename(common_imm = qa16_6)
+) 
+
+save(common_migration_plot, file = "data/common_migration_plot.Rdata")
+
+common_migration %>% 
+  sample_frac(.0010) %>% 
+  arrange(isocntry) %>% 
+  visdat::vis_miss()
+
+common_weights[[10]]
+
+"q1.1" %>% str_detect("\\bw1\\b")
+"w1" %>% str_detect("\\bw1\\b")
+
+
+```
+
+
+### com imm weights
+
+```{r}
+common_migration_weights <- common_migration_codes$save %>% 
+  purrr::map_df(~get_variables(.x, "TARGET")) %>% 
+  mutate(var_codes = paste0("\\b", var_codes, "\\b"))
+
+common_weights <-  purrr::map2(.x = common_migration_weights$save,
+              .y = common_migration_weights$var_codes,
+              ~{get_relevant_migrants(x = .x ,   variables = .y) %>% 
+                  mutate(code = .x)}
+              )
+
+common_weights <- common_weights %>% 
+  map_df(~{
+    .x %>%
+      rename_at(vars(-code), function(x) {x <- "wt"})
+  })
+
+common_weights 
+```
+
+### com imm plot
+
+```{r}
+eu <- c("Austria", "Italy", "Belgium", "Latvia", "Bulgaria", "Lithuania", "Croatia", "Luxembourg", "Cyprus", "Malta", "Czechia", "Netherlands", "Denmark", "Poland", "Estonia", "Portugal", "Finland", "Romania", "France", "Slovakia", "Germany", "Slovenia", "Greece", "Spain", "Hungary", "Sweden", "Ireland", "United Kingdom", "Great Britain")
+
+load("data/common_migration_plot.Rdata")
+
+common_migration_plot <- cbind(common_migration_plot,
+                               common_weights$wt) %>% 
+  rename(wt = `common_weights$wt`) %>% 
+  mutate(save = code)  %>% 
+  mutate(code = str_extract(code, "[^_]+"))  %>% 
+  left_join(eurobarometers) %>% 
+  mutate(year = str_extract(name, 1970:2018 %>% 
+                              as.character %>% 
+                              paste(., collapse = "|")) %>%
+           as.numeric) %>% 
+  mutate(common_imm = ifelse(is.na(common_imm), 3, common_imm)) %>% 
+  mutate(cntry = countrycode::countrycode(isocntry, "iso2c", "country.name")) %>%
+  mutate(cntry = case_when(
+    isocntry %in% c("DE-E", "DE-W") ~ "Germany",
+    isocntry %in% c("GB-GBN", "GB-NIR") ~ "United Kingdom",
+    TRUE ~ cntry
+  )) %>% 
+  mutate(cntryear = paste(cntry, year, sep = "_")) %>% 
+  mutate(eu = ifelse(cntry %in% eu, 1, 0)) %>% 
+  filter(eu == 1)
+
+
+weight_it <- function(country, filter = T) {
+
+if(filter) {
+country_enquo <- enquo(country)
+  
+filtered <- common_migration_plot %>% 
+        filter(cntryear == !!country_enquo)  
+}  else {
+  filtered <- common_migration_plot
+}
+  
+total <- stats::xtabs(filtered$wt ~ filtered$common_imm) %>% 
+  as_tibble() %>% 
+  mutate(n = round(n)) %>% 
+  rename(common_imm = filtered.common_imm)
+
+df <- stats::xtabs(filtered$wt ~ filtered$common_imm) %>%
+  prop.table() %>%
+  as_tibble() %>%
+  rename(perc = n)  %>% 
+  rename(common_imm = filtered.common_imm) %>% 
+  left_join(total) %>% 
+  mutate(cntryear = country)
+
+return(df)
+}
+
+cntrywaves <- unique(common_migration_plot$cntryear) %>% dput()
+
+# weight_it("France_1")
+
+weighted_common_imm <- cntrywaves %>% 
+  purrr::map_df(weight_it) 
+
+weighted_common_imm
+
+
+
+colorful <- rev(c('#d7191c',"grey", '#1a9641'))
+
+weighted_common_imm  %<>%
+  mutate(cntry = str_extract(cntryear, "[^_]+")) %>% 
+  mutate(year = str_extract(cntryear, "(\\d)+") %>% as.numeric) %>% 
+  mutate(common_imm = factor(common_imm, levels = c("1", "3", "2"),
+                           labels = c("For/Tend to agree", "Don't know", "Against/Tend to disagree"))) #%>% 
+  # mutate(cname = countrycode::countrycode(cntry, "iso2c", "country.name")) %>% 
+  # mutate(eu = ifelse(cname %in% eu, 1, 0)) %>% 
+  # filter(eu == 1) %>% 
+  # filter(!(cname %in% c("Latvia", "Romania", "Croatia", "Luxembourg"))) %>%
+
+  
+weighted_common_imm %>% 
+  ggplot(aes(x = year, y = perc, fill = common_imm, alpha = 0.85)) + 
+  geom_area(color = "black") +
+  geom_hline(yintercept = 0.5, linetype = 3, alpha = 0.9) +
+#  geom_point(shape = 6, alpha = 0.85, position = "identity") +
+  facet_wrap(~cntry, nrow = 4) +
+#  ggthemes::scale_fill_gdocs() +
+  scale_fill_manual(values = colorful) +
+  ggthemes::theme_gdocs() +
+  ggtitle("The EU should have a common immigration policy towards people from outside the EU") +
+  ylab("Percent") +
+  xlab("Year") +
+  guides(alpha = F) +
+  theme(axis.text.x = element_text(size = 7.5, face = "italic")) +
+  scale_y_continuous(labels = scales::percent) +
+  scale_x_continuous(labels = seq(2005, 2017, 4),
+                     breaks = seq(2005, 2017, 4)) +
+  theme(legend.position = "top", legend.direction = "horizontal", legend.justification = "left") +
+  labs(fill = "", caption = paste0("N = ", "422.879", "; Source: Eurobarometer 2003 - 2017; Weighted by population weight."))
+
+ggsave(filename = "images/common_imm.png", height = 8, width = 16)
+
+
+n_common_imm <- common_migration_plot$common_imm %>%
+  na.omit %>% 
+  as.numeric %>% 
+  length
+
+table(common_migration_plot$year)
+
+
+c(2003, 2004,  2006, 2007,  2015,  2016 ,  2017)
+```
+
+
+### com asylum
+
+```{r}
+
+
+common_asylum_codes <- eurocodes %>% 
+  filter(str_detect(var_names, "ASYL")) %>% 
+  filter(str_detect(var_names, "COM"))  %>% 
+  # filter(str_detect(var_names, "POL")) %>%
+  filter(!(str_detect(var_names, "FOR|RULES|VIEW|AC/CC"))) %>%
+  mutate(save = code)  %>% 
+  mutate(code = str_extract(code, "[^_]+"))  %>% 
+  left_join(eurobarometers) 
+
+common_asylum_vars <- common_asylum_codes %>% 
+  mutate(var_codes = paste0("\\b", var_codes, "\\b")) %>% 
+  group_by(code) %>% 
+  mutate(var_codes = paste(var_codes, collapse = "|")) %>% 
+  mutate(var_codes = paste0(var_codes, "|isocntry")) %>% 
+  group_by(code) %>% 
+  slice(1)
+
+common_asylum_codes %<>% 
+  group_by(code) %>% 
+  slice(1)
+
+common_asylum <-  purrr::map2(.x = common_asylum_codes$save,
+              .y = common_asylum_vars$var_codes,
+              ~{get_relevant_migrants(x = .x ,   variables = .y) %>% 
+                  mutate(code = .x)}
+              )
+
+save(common_asylum, file = "data/common_asylum.Rdata")
+
+
+common_asylum[[22]] <- cbind(common_asylum[[22]], 
+      read_sav("data/eurobarometers/ZA3904_v1-0-1.sav") %>% 
+        select(isocntry = v7)) %>% 
+  rename(common_asyl = v194) %>% 
+  select(isocntry, code, common_asyl)
+
+common_asylum[[24]] <- cbind(common_asylum[[24]], 
+      read_sav("data/eurobarometers/ZA4229_v1-1-0.sav") %>% 
+        select(isocntry = v7)) %>% 
+  rename(common_asyl = v266) %>% 
+  select(isocntry, code, common_asyl)
+
+
+common_asylum_plot <- common_asylum %>% 
+  map_df(~{
+    .x %>%
+      rename_at(vars(-code, -isocntry), function(x) {x <- "common_asyl"})
+  })
+
+
+save(common_asylum_plot, file = "data/common_asylum_plot.Rdata")
+
+common_asylum_plot %>% 
+  sample_frac(.0010) %>% 
+  arrange(isocntry) %>% 
+  visdat::vis_miss()
+
+common_asylum[[20]] 
+
+"q1.1" %>% str_detect("\\bw1\\b")
+"w1" %>% str_detect("\\bw1\\b")
+```
+
+
+### com imm weights
+
+```{r}
+common_asylum_weights <- common_asylum_codes$save %>% 
+  purrr::map_df(~get_variables(.x, "TARGET")) %>% 
+  filter(!(str_detect(var_names, "NORWAY|FINLAND|SAMPLES|\\+"))) %>% 
+  mutate(var_codes = paste0("\\b", var_codes, "\\b"))
+
+common_asyl_weights <-  purrr::map2(.x = common_asylum_weights$save,
+              .y = common_asylum_weights$var_codes,
+              ~{get_relevant_migrants(x = .x ,   variables = .y) %>% 
+                  mutate(code = .x)}
+              )
+
+common_asyl_weights <- common_asyl_weights %>% 
+  map_df(~{
+    .x %>%
+      rename_at(vars(-code), function(x) {x <- "wt"})
+  })
+
+common_asyl_weights 
+```
+
+### com imm plot
+
+```{r}
+eu <- c("Austria", "Italy", "Belgium", "Latvia", "Bulgaria", "Lithuania", "Croatia", "Luxembourg", "Cyprus", "Malta", "Czechia", "Netherlands", "Denmark", "Poland", "Estonia", "Portugal", "Finland", "Romania", "France", "Slovakia", "Germany", "Slovenia", "Greece", "Spain", "Hungary", "Sweden", "Ireland", "United Kingdom", "Great Britain")
+
+load("data/common_asylum_plot.Rdata")
+
+common_asylum_plot <- cbind(common_asylum_plot,
+                               common_asyl_weights$wt) %>% 
+  rename(wt = `common_asyl_weights$wt`) %>% 
+  mutate(save = code)  %>% 
+  mutate(code = str_extract(code, "[^_]+"))  %>% 
+  left_join(eurobarometers) %>% 
+  mutate(year = str_extract(name, 1970:2018 %>% 
+                              as.character %>% 
+                              paste(., collapse = "|")) %>%
+           as.numeric) %>% 
+  mutate(common_asyl = ifelse(is.na(common_asyl), 3, common_asyl)) %>% 
+  mutate(cntry = countrycode::countrycode(isocntry, "iso2c", "country.name")) %>%
+  mutate(cntry = case_when(
+    isocntry %in% c("DE-E", "DE-W") ~ "Germany",
+    isocntry %in% c("GB-GBN", "GB-NIR") ~ "United Kingdom",
+    TRUE ~ cntry
+  )) %>% 
+  mutate(cntryear = paste(cntry, year, sep = "_")) %>% 
+  mutate(eu = ifelse(cntry %in% eu, 1, 0)) %>% 
+  filter(eu == 1)
+
+
+weight_it <- function(country, filter = T) {
+
+if(filter) {
+country_enquo <- enquo(country)
+  
+filtered <- common_asylum_plot %>% 
+        filter(cntryear == !!country_enquo)  
+}  else {
+  filtered <- common_asylum_plot
+}
+  
+total <- stats::xtabs(filtered$wt ~ filtered$common_asyl) %>% 
+  as_tibble() %>% 
+  mutate(n = round(n)) %>% 
+  rename(common_asyl = filtered.common_asyl)
+
+df <- stats::xtabs(filtered$wt ~ filtered$common_asyl) %>%
+  prop.table() %>%
+  as_tibble() %>%
+  rename(perc = n)  %>% 
+  rename(common_asyl = filtered.common_asyl) %>% 
+  left_join(total) %>% 
+  mutate(cntryear = country)
+
+return(df)
+}
+
+cntrywaves <- unique(common_asylum_plot$cntryear) %>% dput()
+
+# weight_it("France_1")
+
+weighted_common_asyl <- cntrywaves %>% 
+  purrr::map_df(weight_it) 
+
+weighted_common_asyl
+
+
+
+colorful <- rev(c('#d7191c',"grey", '#1a9641'))
+
+weighted_common_asyl  %<>%
+  mutate(cntry = str_extract(cntryear, "[^_]+")) %>% 
+  mutate(year = str_extract(cntryear, "(\\d)+") %>% as.numeric) %>% 
+  mutate(common_asyl = factor(common_asyl, levels = c("1", "3", "2"),
+                           labels = c("National Government", "Don't know", "European Community/Union"))) %>% 
+  group_by(cntry) %>% 
+  add_count() %>% 
+  filter(nn > 3)
+  # mutate(cname = countrycode::countrycode(cntry, "iso2c", "country.name")) %>% 
+  # mutate(eu = ifelse(cname %in% eu, 1, 0)) %>% 
+  # filter(eu == 1) %>% 
+  # filter(!(cname %in% c("Latvia", "Romania", "Croatia", "Luxembourg"))) %>%
+
+  
+weighted_common_asyl %>% 
+  ggplot(aes(x = year, y = perc, fill = common_asyl, alpha = 0.85)) + 
+  geom_area(color = "black") +
+  geom_hline(yintercept = 0.5, linetype = 3, alpha = 0.9) +
+#  geom_point(shape = 6, alpha = 0.85, position = "identity") +
+  facet_wrap(~cntry, nrow = 4) +
+#  ggthemes::scale_fill_gdocs() +
+  scale_fill_manual(values = colorful) +
+  ggthemes::theme_gdocs() +
+  ggtitle("Should Asylum policy be decided by the (NATIONAL) government, or be decided jointly within the European Community/Union?") +
+  ylab("Percent") +
+  xlab("Year") +
+  guides(alpha = F) +
+  theme(axis.text.x = element_text(size = 7.5, face = "italic")) +
+  scale_y_continuous(labels = scales::percent) +
+  scale_x_continuous(labels = seq(1993, 2004, 3),
+                     breaks = seq(1993, 2004, 3)) +
+  theme(legend.position = "top", legend.direction = "horizontal", legend.justification = "left") +
+  labs(fill = "", caption = paste0("N = ", "399.939", "; Source: Eurobarometer 2003 - 2017; Weighted by population weight."))
+
+ggsave(filename = "images/common_asyl.png", height = 8, width = 16)
+
+
+n_common_asyl <- common_asylum_plot$common_asyl %>%
+  na.omit %>% 
+  as.numeric %>% 
+  length
+
+table(weighted_common_asyl$cntry)
+
+
+c(2003, 2004,  2006, 2007,  2015,  2016 ,  2017)
+```
+
+
+### issue immigration
+
+```{r}
+load("data/eurocodes_issues.Rdata")
+
+issue_migration_codes <- eurocodes_issues %>% 
+  filter(str_detect(var_names, "MIGR")) %>% 
+  filter(!(str_detect(var_names, "NON-EC"))) %>% 
+  filter(!(str_detect(var_names, "PERS")))  %>% 
+  filter(!(str_detect(var_names, "FUTURE"))) %>% 
+  filter(!(str_detect(var_names, "TCC")))   %>% 
+  filter(!(str_detect(var_names, "BUDGET"))) %>% 
+  filter(!(str_detect(var_names, "INTEGRATION"))) %>% 
+  filter(!(str_detect(var_names, "PARTICIP")))  %>% 
+  filter(!(str_detect(var_names, "ISSUES EU:"))) %>% 
+  filter(!(str_detect(var_names, "LEVEL"))) %>% 
+  filter(!(str_detect(var_names, "DEVELOPMENT"))) %>% 
+  filter(!(str_detect(var_names, "CHALLENGES"))) %>%  
+  filter(!(str_detect(var_names, "CURRENTLY"))) %>%  
+  mutate(save = code)  %>% 
+  mutate(code = str_extract(code, "[^_]+"))  %>% 
+  left_join(eurobarometers) 
+
+issue_migration_vars <- issue_migration_codes %>% 
+  mutate(var_codes = paste0("\\b", var_codes, "\\b")) %>% 
+  group_by(code) %>% 
+  mutate(var_codes = paste(var_codes, collapse = "|")) %>% 
+  mutate(var_codes = paste0(var_codes, "|isocntry")) %>% 
+  group_by(code) %>% 
+  slice(1)
+
+issue_migration_codes %<>% 
+  group_by(code) %>% 
+  slice(1)
+
+issue_migration <-  purrr::map2(.x = issue_migration_codes$save,
+              .y = issue_migration_vars$var_codes,
+              ~{get_relevant_migrants(x = .x ,   variables = .y) %>% 
+                  mutate(code = .x)}
+              )
+
+save(issue_migration, file = "data/issue_migration.Rdata")
+
+issue_migration_plot <- bind_rows(
+  
+issue_migration[[1]] %<>%
+  rename(issue = v54),
+
+issue_migration[[2]] <- cbind(issue_migration[[2]], 
+      read_sav("data/eurobarometers/ZA3904_v1-0-1.sav") %>% 
+        select(isocntry = v7)) %>% 
+  rename(issue = v76),
+
+issue_migration[[3]] %<>% 
+  rename(issue = v165),
+
+issue_migration[[4]] %<>% 
+  rename(issue = v172),
+
+issue_migration[[5]] <- cbind(issue_migration[[5]], 
+      read_sav("data/eurobarometers/ZA4229_v1-1-0.sav") %>% 
+        select(isocntry = v7)) %>% 
+  rename(issue = v228),
+
+issue_migration[[6]] <- cbind(issue_migration[[6]], 
+      read_sav("data/eurobarometers/ZA4411_v1-1-0.sav") %>% 
+        select(isocntry = v7)) %>% 
+  rename(issue = v190),
+
+issue_migration[[7]] <- cbind(issue_migration[[7]], 
+      read_sav("data/eurobarometers/ZA4414_v1-1-0.sav") %>% 
+        select(isocntry = v7)) %>% 
+  rename(issue = v238),
+
+issue_migration[[8]] <- cbind(issue_migration[[8]], 
+      read_sav("data/eurobarometers/ZA4506_v1-0-1.sav") %>% 
+        select(isocntry = v7)) %>% 
+  mutate(issue = case_when(
+    is.na(v3039 %>% as.character) ~ v3055 %>% as.character,
+    is.na(v3055 %>% as.character) ~ v3039 %>% as.character,
+    T ~ NA_character_ %>% as.character
+  )) %>% 
+  mutate(issue = as.numeric(issue)) %>% 
+  select(isocntry, code, issue),
+
+issue_migration[[9]] <- cbind(issue_migration[[9]], 
+      read_sav("data/eurobarometers/ZA4507_v1-1-0.sav") %>% 
+        select(isocntry = v7)) %>% 
+  rename(issue = v462),
+
+issue_migration[[10]] <- cbind(issue_migration[[10]], 
+      read_sav("data/eurobarometers/ZA4526_v1-0-1.sav") %>% 
+        select(isocntry = v7)) %>% 
+  rename(issue = v182),
+
+issue_migration[[11]] <- cbind(issue_migration[[11]], 
+      read_sav("data/eurobarometers/ZA4530_v2-1-0.sav") %>% 
+        select(isocntry = v7)) %>% 
+  rename(issue = v177),
+
+issue_migration[[12]] <- cbind(issue_migration[[12]], 
+      read_sav("data/eurobarometers/ZA4565_v4-0-1.sav") %>% 
+        select(isocntry = v7)) %>% 
+  rename(issue = v113),
+
+issue_migration[[13]] <- cbind(issue_migration[[13]], 
+      read_sav("data/eurobarometers/ZA4744_v5-0-0.sav") %>% 
+        select(isocntry = v7)) %>% 
+  rename(issue = v119),
+
+issue_migration[[14]] <- cbind(issue_migration[[14]], 
+      read_sav("data/eurobarometers/ZA4819_v3-0-2.sav") %>% 
+        select(isocntry = v7)) %>% 
+  rename(issue = v159),
+
+issue_migration[[15]] <- cbind(issue_migration[[15]], 
+      read_sav("data/eurobarometers/ZA4971_v4-0-0.sav") %>% 
+        select(isocntry = v7)) %>% 
+  rename(issue = v125),
+
+issue_migration[[16]] <- cbind(issue_migration[[16]], 
+      read_sav("data/eurobarometers/ZA4973_v3-0-0.sav") %>% 
+        select(isocntry = v7)) %>% 
+  rename(issue = v141),
+
+issue_migration[[17]] <- cbind(issue_migration[[17]], 
+      read_sav("data/eurobarometers/ZA4994_v3-0-0.sav") %>% 
+        select(isocntry = v7)) %>% 
+  rename(issue = v135),
+
+issue_migration[[18]] %<>% add_countries,
+
+issue_migration[[19]] <- cbind(issue_migration[[19]], 
+      read_sav("data/eurobarometers/ZA5449_v2-2-0.sav") %>% 
+        select(isocntry = v7)) %>% 
+  mutate(issue = case_when(
+    is.na(v130 %>% as.character) ~ v164 %>% as.character,
+    is.na(v164 %>% as.character) ~ v130 %>% as.character,
+    T ~ NA_character_ %>% as.character
+  )) %>% 
+  mutate(issue = as.numeric(issue)) %>% 
+  select(isocntry, code, issue),
+	
+issue_migration[[20]] <- cbind(issue_migration[[20]], 
+      read_sav("data/eurobarometers/ZA5481_v2-0-1.sav") %>% 
+        select(isocntry = v7)) %>% 
+  mutate(issue = case_when(
+    is.na(v150 %>% as.character) ~ v184 %>% as.character,
+    is.na(v184 %>% as.character) ~ v150 %>% as.character,
+    T ~ NA_character_ %>% as.character
+  )) %>% 
+  mutate(issue = as.numeric(issue)) %>% 
+  select(isocntry, code, issue),
+
+issue_migration[[21]] <- issue_migration[[21]] %>% 
+  mutate(issue = case_when(
+    is.na(qa6a1_9 %>% as.character) ~ qa6a2_9 %>% as.character,
+    is.na(qa6a2_9 %>% as.character) ~ qa6a1_9 %>% as.character,
+    T ~ NA_character_ %>% as.character
+  )) %>% 
+  mutate(issue = as.numeric(issue)) %>% 
+  select(isocntry, code, issue),
+
+issue_migration[[22]] <- issue_migration[[22]] %>% 
+  rename(issue = qa7a_9),
+
+issue_migration[[23]] <- issue_migration[[23]] %>% 
+  rename(issue = qa5a_9),
+
+issue_migration[[24]] <- issue_migration[[24]] %>% 
+  rename(issue = qa6a_9),
+
+issue_migration[[25]] <- issue_migration[[25]] %>% 
+  rename(issue = qa4_9),
+
+issue_migration[[26]] <- issue_migration[[26]] %>% 
+  rename(issue = qa4a_9),
+
+issue_migration[[27]] <- issue_migration[[27]] %>% 
+  rename(issue = qa3.9),
+
+issue_migration[[28]] <- issue_migration[[28]] %>% 
+  rename(issue = qa3a.9),
+
+issue_migration[[29]] <- issue_migration[[29]] %>% 
+  rename(issue = qa3a.9),
+
+issue_migration[[30]] <- issue_migration[[30]] %>% 
+  rename(issue = qa3a.9),
+
+issue_migration[[31]] <- issue_migration[[31]] %>% 
+  rename(issue = qa3a.9),
+
+issue_migration[[32]] <- issue_migration[[32]] %>% 
+  rename(issue = qa3a.9),
+
+issue_migration[[33]] <- issue_migration[[33]] %>% 
+  rename(issue = qa3a.9),
+) 
+
+save(issue_migration_plot, file = "data/issue_migration_plot.Rdata")
+
+issue_migration_plot %>% 
+  sample_frac(.0010) %>% 
+  arrange(isocntry) %>% 
+  visdat::vis_miss()
+
+common_weights[[10]]
+
+"q1.1" %>% str_detect("\\bw1\\b")
+"w1" %>% str_detect("\\bw1\\b")
+
+v146
+
+ZA5234_v2-0-1.sav	
+
+
+
+add_countries <- function(x) {
+  cbind(x, read_sav(paste0("data/eurobarometers/", 
+                      x$code[1])) %>% 
+        select(isocntry = v7)) %>% 
+  rename_(issue = names(x)[1])
+}
+
+issue_migration[[18]] %>% add_countries
+
+
+```
+
+
+### issue immigration weights
+
+```{r}
+issue_migration_weights <- issue_migration_codes$save %>% 
+  purrr::map_df(~get_variables(.x, "TARGET")) %>% 
+  mutate(var_codes = paste0("\\b", var_codes, "\\b"))
+
+issue_migration_weights %<>% 
+  filter(var_names != "WEIGHT RESULT FROM TARGET (CC)") %>% 
+  filter(var_names != "W31 POLIT WEIGHT RESULT FROM TARGET EU27 (VOTING AGE)") %>%
+  filter(var_names != "WEIGHT RESULT FROM TARGET - UNITED GERMANY") %>% 
+  filter(var_names != "WEIGHT RESULT FROM TARGET - NATION")  %>% 
+  filter(var_names != "WEIGHT RESULT FROM TARGET - UNITED KINGDOM") 
+  
+
+issue_weights <-  purrr::map2(.x = issue_migration_weights$save,
+              .y = issue_migration_weights$var_codes,
+              ~{get_relevant_migrants(x = .x ,   variables = .y) %>% 
+                  mutate(code = .x)}
+              )
+
+issue_weights <- issue_weights %>% 
+  map_df(~{
+    .x %>%
+      rename_at(vars(-code), function(x) {x <- "wt"})
+  })
+
+issue_weights 
+
+
+```
+
+### issue immigration plot
+
+```{r}
+eu <- c("Austria", "Italy", "Belgium", "Latvia", "Bulgaria", "Lithuania", "Croatia", "Luxembourg", "Cyprus", "Malta", "Czechia", "Netherlands", "Denmark", "Poland", "Estonia", "Portugal", "Finland", "Romania", "France", "Slovakia", "Germany", "Slovenia", "Greece", "Spain", "Hungary", "Sweden", "Ireland", "United Kingdom", "Great Britain")
+
+load("data/issue_migration_plot.Rdata")
+
+issue_migration_plot <- cbind(issue_migration_plot,
+                               issue_weights$wt) %>% 
+  rename(wt = `issue_weights$wt`) %>% 
+  mutate(save = code)  %>% 
+  mutate(code = str_extract(code, "[^_]+"))  %>% 
+  left_join(eurobarometers) %>% 
+  mutate(year = str_extract(name, 1970:2018 %>% 
+                              as.character %>% 
+                              paste(., collapse = "|")) %>%
+           as.numeric) %>% 
+  # mutate(issue = ifelse(is.na(issue), 2, issue)) %>% 
+  mutate(cntry = countrycode::countrycode(isocntry, "iso2c", "country.name")) %>%
+  mutate(cntry = case_when(
+    isocntry %in% c("DE-E", "DE-W") ~ "Germany",
+    isocntry %in% c("GB-GBN", "GB-NIR") ~ "United Kingdom",
+    TRUE ~ cntry
+  )) %>% 
+  mutate(cntryear = paste(cntry, year, sep = "_")) %>% 
+  mutate(eu = ifelse(cntry %in% eu, 1, 0)) %>% 
+  filter(eu == 1) %>% 
+  drop_na(cntry, issue)
+
+
+# issue_migration_plot %>% select(cntry) %>% table()
+
+weight_it <- function(country, filter = T) {
+
+if(filter) {
+country_enquo <- enquo(country)
+  
+filtered <- issue_migration_plot %>% 
+        filter(cntryear == !!country_enquo)  
+}  else {
+  filtered <- issue_migration_plot
+}
+  
+total <- stats::xtabs(filtered$wt ~ filtered$issue) %>% 
+  as_tibble() %>% 
+  mutate(n = round(n)) %>% 
+  rename(issue = filtered.issue)
+
+df <- stats::xtabs(filtered$wt ~ filtered$issue) %>%
+  prop.table() %>%
+  as_tibble() %>%
+  rename(perc = n)  %>% 
+  rename(issue = filtered.issue) %>% 
+  left_join(total) %>% 
+  mutate(cntryear = country)
+
+return(df)
+}
+
+
+cntrywaves <- unique(issue_migration_plot$cntryear %>% na.omit) %>% dput()
+
+# weight_it("France_1")
+
+weighted_issue <- cntrywaves %>% 
+  purrr::map_df(weight_it) 
+
+weighted_issue
+
+
+colorful <- rev(c('#d7191c', '#1a9641'))
+
+weighted_issue  %<>%
+  mutate(cntry = str_extract(cntryear, "[^_]+")) %>% 
+  mutate(year = str_extract(cntryear, "(\\d)+") %>% as.numeric) %>% 
+  mutate(issue = factor(issue, levels = c("1", "0"),
+                           labels = c("Mentioned", "Not Mentioned"))) #%>% 
+  # mutate(cname = countrycode::countrycode(cntry, "iso2c", "country.name")) %>% 
+  # mutate(eu = ifelse(cname %in% eu, 1, 0)) %>% 
+  # filter(eu == 1) %>% 
+  # filter(!(cname %in% c("Latvia", "Romania", "Croatia", "Luxembourg"))) %>%
+
+  
+weighted_issue %>% 
+  filter(issue == "Mentioned") %>% 
+  mutate(cntry = fct_reorder2(cntry, perc, issue)) %>% 
+  ggplot(aes(x = year, y = perc, fill = issue)) + 
+  geom_line(color = "black", linetype = "dashed") +
+  geom_point(alpha = 0.85, position = "identity", size = 1.2) +
+  geom_hline(yintercept = 0.5, linetype = 3, alpha = 0.9) +
+#  geom_point(shape = 6, alpha = 0.85, position = "identity") +
+  facet_wrap(~cntry, nrow = 4) +
+#  ggthemes::scale_fill_gdocs() +
+  scale_fill_manual(values = colorful) +
+  ggthemes::theme_gdocs() +
+  ggtitle("What do you think are the two most important issues facing (OUR COUNTRY) at the moment?") +
+  ylab("Percent") +
+  xlab("Year") +
+  guides(alpha = F) +
+  theme(axis.text.x = element_text(size = 7.5, face = "italic")) +
+  scale_y_continuous(labels = scales::percent) +
+  scale_x_continuous(labels = seq(2002, 2017, 3),
+                     breaks = seq(2002, 2017, 3)) +
+  theme(legend.position = "top", legend.direction = "horizontal", legend.justification = "left") +
+  labs(fill = "Immigration", caption = paste0("N = ", "872.963", "; Source: Eurobarometer 2002 - 2017; Weighted by population weight. Data compiled by Fabio Votta, August 2018."))
+
+ggsave(filename = "images/issue.png", height = 8, width = 16)
+
+
+n_issue_migration <- issue_migration_plot$issue %>%
+  na.omit %>% 
+  as.numeric %>% 
+  length
+
+table(issue_migration_plot$year)
+
+# issue_eurobarometers <- issue_migration_plot %>% 
+#   select(isocntry, name, year, gesiscode = code, issue, wt)
+# 
+# 
+# readr::write_csv(issue_eurobarometers, path = "data/issue_eurobarometers.csv")
+# 
+# rm(issue_eurobarometers)
+# 
+# readr::read_csv("data/issue_eurobarometers.csv")
+```
+
+
+## tables
+
+### immigration 
+
+```{r}
+load("data/eurocodes_migration.Rdata")
+load("data/eurocodes_issues.Rdata")
+
+
+variablelist_immigration <- eurocodes_migration  %>% 
+  mutate(save = code)  %>% 
+  mutate(code = str_extract(code, "[^_]+"))  %>% 
+  left_join(eurobarometers) %>% 
+  mutate(year = str_extract(name, paste0(1970:2018, collapse = "|"))) %>% 
+  select(name, code, year, var_codes, var_names) %>% 
+  arrange(year)
+
+xlsx::write.xlsx(variablelist_immigration, file = "data/variablelist_immigration.xlsx")
+
+
+eurocodes_issues  %>% 
+  mutate(save = code)  %>% 
+  mutate(code = str_extract(code, "[^_]+"))  %>% 
+  left_join(eurobarometers) 
+
+```
+
+### issues
+
+```{r}
+
+load("data/eurocodes_issues.Rdata")
+
+
+variablelist_issues <- eurocodes_issues  %>% 
+  mutate(save = code)  %>% 
+  mutate(code = str_extract(code, "[^_]+"))  %>% 
+  left_join(eurobarometers) %>% 
+  mutate(year = str_extract(name, paste0(1970:2018, collapse = "|"))) %>% 
+  select(name, code, year, var_codes, var_names) %>% 
+  arrange(year)
+
+xlsx::write.xlsx(variablelist_issues, file = "data/variablelist_issues.xlsx")
+
+
+# eurocodes_issues  %>% 
+#   mutate(save = code)  %>% 
+#   mutate(code = str_extract(code, "[^_]+"))  %>% 
+#   left_join(eurobarometers) 
+```
+
+
+## codebook
+
+### immigration
+
+```{r}
+eurocodes_migration
+
+migration_codes <- eurocodes_migration %>% 
+  mutate(save = code)  %>% 
+  mutate(code = str_extract(code, "[^_]+"))  %>% 
+  left_join(eurobarometers) %>% 
+  mutate(year = str_extract(name, paste0(1970:2018, collapse = "|"))) %>% 
+  arrange(year)
+
+migration_vars <- migration_codes %>% 
+  mutate(var_codes = paste0("\\b", var_codes, "\\b")) %>% 
+  group_by(code) %>% 
+  mutate(var_codes = paste(var_codes, collapse = "|")) %>% 
+  mutate(var_codes = paste0(var_codes, "|isocntry")) %>% 
+  group_by(code) %>% 
+  slice(1)
+
+migration_codes %<>% 
+  group_by(code) %>% 
+  slice(1)
+
+migration_dat <-  purrr::map2(
+             .x = migration_codes$save,
+             .y = migration_vars$var_codes, 
+             ~{get_relevant_migrants(x = .x ,   variables = .y) %>%  mutate(code = .x)}
+              )
+
+  
+get_code <- function(df) {
+  
+  name <-  as.character(unlist(df[1,]))[as.character(unlist(df[1,])) %>% 
+                                          str_detect(., "ZA")]
+  
+  rename_at(df, vars(code), function(x) {x <- name %>% na.omit})
+}
+
+get_code(migration_dat[[107]])
+
+migration_dat %<>% 
+  map(get_code)
+
+save(migration_dat, file = "data/migration_dat.Rdata")
+
+# load("data/migration_dat.Rdata")
+
+is_zero <- function(x) {
+  ifelse(x == 0, 0, 1)
+}
+
+
+
+
+```
+
+eu <- c("Austria", "Italy", "Belgium", "Latvia", "Bulgaria", "Lithuania", "Croatia", "Luxembourg", "Cyprus", "Malta", "Czech Republic", "Netherlands", "Denmark", "Poland", "Estonia", "Portugal", "Finland", "Romania", "France", "Slovakia", "Germany", "Slovenia", "Greece", "Spain", "Hungary", "Sweden", "Ireland", "United Kingdom")
+
+### issues
+
+```{r}
+eurocodes_issues
+
+issue_codes <- eurocodes_issues %>% 
+  mutate(save = code)  %>% 
+  mutate(code = str_extract(code, "[^_]+"))  %>% 
+  left_join(eurobarometers) %>% 
+  mutate(year = str_extract(name, paste0(1970:2018, collapse = "|"))) %>% 
+  arrange(year)
+
+issue_vars <- issue_codes %>% 
+  mutate(var_codes = paste0("\\b", var_codes, "\\b")) %>% 
+  group_by(code) %>% 
+  mutate(var_codes = paste(var_codes, collapse = "|")) %>% 
+  mutate(var_codes = paste0(var_codes, "|isocntry")) %>% 
+  group_by(code) %>% 
+  slice(1)
+
+issue_codes %<>% 
+  group_by(code) %>% 
+  slice(1)
+
+issue_dat <-  purrr::map2(
+             .x = issue_codes$save,
+             .y = issue_vars$var_codes, 
+             ~{get_relevant_migrants(x = .x ,   variables = .y) %>%  mutate(code = .x)}
+              )
+
+  
+get_code <- function(df) {
+  
+  name <-  as.character(unlist(df[1,]))[as.character(unlist(df[1,])) %>% 
+                                          str_detect(., "ZA")]
+  
+  rename_at(df, vars(code), function(x) {x <- name %>% na.omit})
+}
+
+# get_code(migration_dat[[107]])
+
+issue_dat %<>% 
+  map(get_code)
+
+save(issue_dat, file = "data/issue_dat.Rdata")
+```
+
+## showtables
+
+### immigration
+
+```{r}
+load("data/common_migration_plot.Rdata")
+
+common_migration_tab <- common_migration_plot %>% 
+  mutate(save = code)  %>% 
+  mutate(code = str_extract(code, "[^_]+"))  %>% 
+  left_join(eurobarometers) %>% 
+  mutate(year = str_extract(name, 1970:2018 %>% 
+                              as.character %>% 
+                              paste(., collapse = "|")) %>%
+           as.numeric) %>% 
+  mutate(common_imm = ifelse(is.na(common_imm), 3, common_imm)) %>% 
+  mutate(cntry = countrycode::countrycode(isocntry, "iso2c", "country.name")) %>%
+  mutate(cntry = case_when(
+    isocntry %in% c("DE-E", "DE-W") ~ "Germany",
+    isocntry %in% c("GB-GBN", "GB-NIR") ~ "United Kingdom",
+    TRUE ~ cntry
+  )) %>% #select(cntry, common_imm) %>% table()
+  mutate(cntryear = paste(cntry, year, sep = "_")) %>% 
+  mutate(eu = ifelse(cntry %in% eu, 1, 0)) %>% 
+  filter(eu == 1) %>% 
+  select(cntry, year, common_imm) %>% 
+  table() %>% 
+  as_tibble() %>% 
+  group_by(cntry, year) %>% 
+  summarise(n = sum(n)) %>% 
+  spread("year", "n")  %>% 
+  mutate_at(vars(2:8), is_zero) %>% 
+  ungroup() %>% 
+  mutate(n_cntryear = .[,2:8] %>%
+  rowSums()) %>% 
+  arrange(desc(n_cntryear)) %>% 
+  mutate(var_codes = "common_imm") %>% 
+  mutate(var_names = "EC/EU COMMON POLICY IMMIGRATION POLICY") %>% 
+  select(cntry, var_codes, var_names, everything())
+
+
+xlsx::write.xlsx(common_migration_tab, file = "data/common_migration_tab.xlsx")
+
+common_migration_tab
+```
+
+### issue
+
+```{r}
+load("data/issue_migration_plot.Rdata")
+
+issue_migration_tab <- issue_migration_plot %>% 
+  mutate(save = code)  %>% 
+  mutate(code = str_extract(code, "[^_]+"))  %>% 
+  left_join(eurobarometers) %>% 
+  mutate(year = str_extract(name, 1970:2018 %>% 
+                              as.character %>% 
+                              paste(., collapse = "|")) %>%
+           as.numeric) %>% 
+  mutate(cntry = countrycode::countrycode(isocntry, "iso2c", "country.name")) %>%
+  mutate(cntry = case_when(
+    isocntry %in% c("DE-E", "DE-W") ~ "Germany",
+    isocntry %in% c("GB-GBN", "GB-NIR") ~ "United Kingdom",
+    TRUE ~ cntry
+  )) %>% #select(cntry, common_imm) %>% table()
+  mutate(cntryear = paste(cntry, year, sep = "_")) %>% 
+  mutate(eu = ifelse(cntry %in% eu, 1, 0)) %>% 
+  filter(eu == 1) %>% 
+  select(cntry, year, issue) %>% 
+  table() %>% 
+  as_tibble() %>% 
+  group_by(cntry, year) %>% 
+  summarise(n = sum(n)) %>% 
+  spread("year", "n")  %>% 
+  mutate_at(vars(2:17), is_zero) %>% 
+  ungroup() %>% 
+  mutate(n_cntryear = .[,2:17] %>%
+  rowSums()) %>% 
+  arrange(desc(n_cntryear)) %>% 
+  mutate(var_codes = "issue") %>% 
+  mutate(var_names = "MOST IMPORTANT ISSUE CNTRY: IMMIGRATION") %>% 
+  select(cntry, var_codes, var_names, everything())
+
+xlsx::write.xlsx(issue_migration_tab, file = "data/issue_migration_tab.xlsx")
+
+common_migration_tab
+```
+
+### all
+
+```{r}
+xlsx::write.xlsx(common_migration_tab, 
+                 file = "data/eurobarometer_tab.xlsx",
+                 sheetName = "Common Immigration Policy")
+xlsx::write.xlsx(issue_migration_tab, 
+                 file = "data/eurobarometer_tab.xlsx",
+                 sheetName = "Most Important Issue Immigration", append = T)
+```
+
+
+## crap
+
+### ZA2031_eu35.0
+
+54	v52	Q27 IMMIGRANTS SOUTH OF MEDITERRANEAN
+55	v53	Q27 IMMIGRANTS FROM EASTERN EUROPE
+56	v54	Q27 IMMIGRANTS SEEKING POLITIC ASYLUM
+57	v55	Q28 FOREIGN NON EC POPULATION - QUANTITY
+58	v56	Q29 FOREIGN NON EC POPULATION - RIGHTS
+
+```{r}
+ZA2031_eu35.0 <- read_sav("data/eurobarometers/ZA2031_v1-1-0.sav")
+
+# ZA2031_eu35.0 %>% binoculaR()
+
+ZA2031_eu35.0 %>% 
+  mutate(cntry = countrycode::countrycode(isocntry, "iso2c", "country.name")) %>%
+  mutate(cntry = case_when(
+    isocntry %in% c("DE-E", "DE-W") ~ "DE",
+    isocntry %in% c("GB-GBN", "GB-NIR") ~ "GB",
+    TRUE ~ cntry
+  )) %>% 
+  mutate(imm_mediterranean = v52) %>% 
+  mutate(imm_easteurope = v53) %>% 
+  mutate(imm_asylum = v54) %>% 
+  mutate(noneu_quantity = v55) %>% 
+  mutate(noneu_rights = v56)
+  
+```
+
+### ZA2031_eu37.0
+
+304	v301	Q44 EC COMMON POLICY IMMIGRATION POLICY	304	
+444	v441	Q70 IMMIGRANTS SOUTH OF MEDITERRANEAN	444	
+445	v442	Q70 IMMIGRANTS FROM EASTERN EUROPE	445	
+446	v443	Q70 IMMIGRANTS SEEKING POLITICAL ASYLUM	446	
+305	v302	Q44 EC COMMON POLICY POLITICAL ASYLUM	305	
+447	v444	Q71 FOREIGN NON-EC POPULATION - QUANTITY	447	
+448	v445	Q72 FOREIGN NON-EC POPULATION - RIGHTS	448	
+
+```{r}
+ZA2141_eu37.0 <- read_sav("data/eurobarometers/ZA2141_v1-1-0.sav")
+
+# ZA2141_eu37.0 %>% binoculaR()
+
+ZA2141_eu37.0 %>% 
+  mutate(cntry = countrycode::countrycode(isocntry, "iso2c", "country.name")) %>%
+  mutate(cntry = case_when(
+    isocntry %in% c("DE-E", "DE-W") ~ "DE",
+    isocntry %in% c("GB-GBN", "GB-NIR") ~ "GB",
+    TRUE ~ cntry
+  )) %>% 
+  mutate(imm_mediterranean = v441) %>% 
+  mutate(imm_easteurope = v442) %>% 
+  mutate(imm_asylum = v443) %>% 
+  mutate(noneu_quantity = v444) %>% 
+  mutate(noneu_rights = v445) %>% 
+  mutate(common_imm = v301) %>% 
+  mutate(common_asylum = v302)
+  
+```
+
+### ZA2346_eu39.0
+
+304	v301	Q44 EC COMMON POLICY IMMIGRATION POLICY	304	
+305	v302	Q44 EC COMMON POLICY POLITICAL ASYLUM	305	
+444	v441	Q70 IMMIGRANTS SOUTH OF MEDITERRANEAN	444	
+445	v442	Q70 IMMIGRANTS FROM EASTERN EUROPE	445	
+446	v443	Q70 IMMIGRANTS SEEKING POLITICAL ASYLUM	446	
+447	v444	Q71 FOREIGN NON-EC POPULATION - QUANTITY	447	
+448	v445	Q72 FOREIGN NON-EC POPULATION - RIGHTS	448	
+
+```{r}
+ZA2346_eu39.0 <- read_sav("data/eurobarometers/ZA2346_v1-1-0.sav")
+
+# ZA2346_eu39.0 %>% binoculaR()
+
+ZA2346_eu39.0 %>% 
+  mutate(cntry = countrycode::countrycode(isocntry, "iso2c", "country.name")) %>%
+  mutate(cntry = case_when(
+    isocntry %in% c("DE-E", "DE-W") ~ "DE",
+    isocntry %in% c("GB-GBN", "GB-NIR") ~ "GB",
+    TRUE ~ cntry
+  )) %>% 
+  mutate(imm_mediterranean = v441) %>% 
+  mutate(imm_easteurope = v442) %>% 
+  mutate(imm_asylum = v443) %>% 
+  mutate(noneu_quantity = v444) %>% 
+  mutate(noneu_rights = v445) %>% 
+  mutate(common_imm = v301) %>% 
+  mutate(common_asylum = v302) %>% select(common_asylum) %>% sjmisc::to_label(.) %>% table()
+  
+```
+
+
+### Rselenium
+
+```{r}
+library(RSelenium)
+
+port <- sample(4000L:5000L, 1)
+rD <- rsDriver(verbose = FALSE, port = port)
+rD
+
+remDr <- rD$client
+
+url <- "https://dbk.gesis.org/dbksearch/login.asp"
+remDr$navigate(url)
+
+
+
+url <- "https://dbk.gesis.org/dbksearch/SDESC2.ASP?no=0626&db=d&search=&search2=&tab=0&notabs=&nf=1&af=&ll=1000"
+remDr$navigate(url)
+
+webElem <- remDr$findElement(using = 'xpath', '//*[(@id = "maintab")]//li[(((count(preceding-sibling::*) + 1) = 4) and parent::*)]//a')
+
+webElem$clickElement()
+
+webElem <- remDr$findElement(using = 'xpath', '//*[contains(concat( " ", @class, " " ), concat( " ", "sdt", " " ))]//*[contains(concat( " ", @class, " " ), concat( " ", "tabbermenulive", " " ))]//td//li[(((count(preceding-sibling::*) + 1) = 4) and parent::*)]//a')
+
+webElem$clickElement()
+  
+
+webElem <- remDr$findElement(using = 'xpath', "//input")
+
+webElem$highlightElement()
+
+webElem <- remDr$findElement(using = 'xpath', '//*[@id="Table1"]/tbody/tr[3]/td/form/input[3]')
+
+webElem <- remDr$findElement(using = 'xpath', "//input[@value='Download'][@type='submit']")
+
+#Table1 > tbody > tr:nth-child(3) > td > form > input[type="submit"]:nth-child(5)
+
+codes <- seq(47404, 49000, by = 4)
+
+
+remDr$navigate(paste0("https://dbk.gesis.org/dbksearch/download.asp?db=D&id=", codes)[[1]])
+
+links <- paste0("https://dbk.gesis.org/dbksearch/download.asp?db=D&id=", codes)
+
+for (jj in seq_along(links)) {
+  remDr$navigate(links[[jj]])
+  Sys.sleep(5)
+}
+
+```
+
+
+Dear Ayelet,
+
+- pooled: 
+
+Showing pooled numbers really only makes sense for a set of countries that remains consistent over time, otherwise countries popping in and out of the sample severely skew the results and make them uninterpretable. If we wanted to show pooled estimates for certain groupins, such as West vs. East Europe or Old vs. New EU Member States we would also need to use the same number of countries consistently.
+
+That's why we created a list of countries and survey that could be pooled:
+
+a. European Social Survey
+
+There are 13 countries have six questions asked accross all survey rounds (2002 - 2016)
+
+The questions are:
+
+Immigration bad or good for country's economy	
+Allow many/few immigrants of different race/ethnic group from majority	
+Allow many/few immigrants from poorer countries outside Europe	
+Allow many/few immigrants of same race/ethnic group as majority	
+Country's cultural life undermined or enriched by immigrants	
+Immigrants make country worse or better place to live
+
+The countries are:
+
+"Belgium", "Germany", "Spain", "Finland",  "France", "United Kingdom", "Hungary", "Ireland", "Netherlands", "Poland", "Portugal", "Sweden", "Slovenia" 
+
+b. World/European Values Survey
+
+There's two questions that can be used in the W/EVS:
+
+Would not like to have as neighbour: Immigrants/Foreign workers
+Jobs scarce: Employers should give priority to [nation] people than immigrants
+
+
+If one limits the pooled data to the questions that are available accross all survey rounds (1981 - 2014), there are only three countries left:
+
+
+
+We could also exclude the 1981 - 84 sample and start in 1990, which would leave us with the following 6-7 countries:
+
+
+
+c. Eurobarometer
+
+The Eurobarometer is the most comprehensive source in terms of countries asked. Unfortunately, working with the Eurobarometer is an absolute mess, variable names and codes change over time so it was difficult to find a question that one can track over time.
+
+We extracted two such questions that range from 2002/3 until 2017:
+
+The EU should have a common immigration policy towards people from outside the EU
+What do you think are the two most important issues facing (OUR COUNTRY) at the moment? Immigration
+
+These questions are available for all 28 EU Member States for every year (except for the countries that joined the EU in 2003).
+
+- "selected countries of selected questions" 
+
+If we want to show selected countries over time, we would need to choose from countries that are questioned consistently. To this end, we created excel files that list all questions, whether they were asked in a givn year/survey round and how often the question was asked.
+
+Those excel files are:
+
+If you'd like to, you can take a look for yourself and see whether there are questions that we are more or less interested in.
+
+- "selecting questions for presentation across all countries" 
+
+This is really the least restricting versions. We can pick and choose whatever questions we want, when we display them in tables or visualize them with charts, we can just leave the column empty if they don't appear for a given year.
+
+
+
